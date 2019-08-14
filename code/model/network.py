@@ -1,6 +1,6 @@
 from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate,LeakyReLU,UpSampling3D, Conv3D, Conv2D, UpSampling2D,Lambda
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding2D
-from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.models import Model
 from utils.instance_norm import InstanceNormalization
 
 def conv2d(layer_input, filters, f_size=4):
