@@ -1,7 +1,7 @@
 import tensorflow as tf
 import pandas as pd
 from model.cyclegan import CycleGAN
-from load_mri_data import load_data
+from load_brats_data import load_data,modality_types,get_files
 import click
 import numpy as np
 import csv
@@ -20,6 +20,23 @@ def write_params(params):
     for key, val in params.items():
         w.writerow([key, val])
     return
+
+def get_data_split(data_dir,modA,modB,unpaired=True):
+    df = pd.read_csv(os.path.join("data/","brats_files.csv"))
+    df["Filename"] =data_dir + df["Filename"].astype(str)
+    modA_suf = "-"+modA+".tfrecords"
+    modB_suf = "-"+modB+".tfrecords"
+    setA_df = df[df["Set"] == "setA"]["Filename"].astype(str) + modA_suf
+    setB_df = df[df["Set"] == "setB"]["Filename"].astype(str) + modB_suf
+    setA_files = list(setA_df.values)
+    setB_files = list(setB_df.values)
+    if unpaired:
+        pair_modA_df = df[df["Set"] == "pair"]["Filename"].astype(str) + modA_suf
+        pair_modB_df = df[df["Set"] == "pair"]["Filename"].astype(str) + modB_suf
+        setA_files+=list(pair_modA_df.values)
+        setB_files+= list(pair_modB_df.values)
+    return setA_files,setB_files
+
 @click.command()
 @click.option('--checkpoint-dir',
             type=click.Path(
@@ -29,7 +46,7 @@ def write_params(params):
              help="directory to save results",
              show_default=True)
 @click.option('--data-dir',
-            default="data/mri_full/",
+            default="data/brats2018/",
             type=click.Path(
                     file_okay=False,
                     dir_okay=True,
@@ -52,7 +69,7 @@ def write_params(params):
              help="Number of convolution blocks for discirm and gen",
              show_default=True)
 @click.option('--patch-size',
-            default=128,
+            default=256,
             type=click.INT,
              help="Size of image",
              show_default=True)
@@ -101,15 +118,20 @@ def write_params(params):
             type=click.INT,
              help="number of epochs to decay learning rate",
              show_default=True)
+@click.option('--mod-a',
+            type=click.Choice(modality_types),
+             help="Choice of brats modality",
+             show_default=True)
+@click.option('--mod-b',
+            type=click.Choice(modality_types),
+             help="Choice of brats modality",
+             show_default=True)
 def main(checkpoint_dir,
         data_dir,
         gf,df,depth,patch_size,n_channels,
-        cycle_loss_weight,learning_rate,batch_size,n_epochs,summary_freq,end_learning_rate,begin_decay,decay_steps):
+        cycle_loss_weight,learning_rate,batch_size,n_epochs,summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b):
 
-    data = pd.read_csv("data/demographics.csv")
-    data["Filename"] = data["Filename"].str.replace('.nii',".tfrecords")
-    data["Filename"] = data_dir + data["Filename"].astype(str)
-    image_size = [121,145,121,1]
+    image_size = [240,240,155,1]
     gan = CycleGAN(checkpoint_dir,
                     gf=gf,
                     df=df,
@@ -121,19 +143,15 @@ def main(checkpoint_dir,
                     begin_decay=begin_decay,
                     end_learning_rate=end_learning_rate,
                     decay_steps=decay_steps)
-    set_A = data[(data["Scanner"]=="WMH") & (data["Class"]=="CON")]
-    set_B = data[(data["Scanner"]=="NRA") & (data["Class"]=="CON")]
     params = click.get_current_context().params
     write_params(params)
-
-    dataset_A = load_data(set_A["Filename"].values,
+    set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
+    dataset_A = load_data(set_A,
                         image_size=image_size,
-                        is_3D=False,
-                        buffer_size=batch_size*3)
-    dataset_B = load_data(set_B["Filename"].values,
+                        buffer_size=20)
+    dataset_B = load_data(set_B,
                         image_size=image_size,
-                        is_3D=False,
-                        buffer_size=batch_size*3)
+                        buffer_size=20)
 
     sess = gan.sess
     iterator_A = tf.compat.v1.data.make_initializable_iterator(dataset_A)
