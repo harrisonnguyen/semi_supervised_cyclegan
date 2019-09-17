@@ -1,21 +1,27 @@
-from cyclegan import CycleGAN
-
+import tensorflow as tf
+from model.cyclegan import CycleGAN
+from model.network import discriminator
+from model_utils import learning_utils as learning
+from keras import backend as K
 class SemiAdverCycleGAN(CycleGAN):
-    def __init__(self,entropy_weight,*args,**kwargs):
+    def __init__(self,entropy_weight=1.0,*args,**kwargs):
         self._ALPHA = entropy_weight
         super(SemiAdverCycleGAN,self).__init__(*args,**kwargs)
 
 
     def _build_graph(self,*args,**kwargs):
         super(SemiAdverCycleGAN,self)._build_graph(*args,**kwargs)
-
+        patch_size = args[3]
+        n_modality = args[4]
+        df = args[1]
+        depth= args[2]
         self._xphA_paired = tf.placeholder(tf.float32, [None,patch_size,patch_size,n_modality])
         self._xphB_paired = tf.placeholder(tf.float32, [None,patch_size,patch_size,n_modality])
 
         # we concatenate the paired images on the channel axis
         img_shape = self.img_shape
-        img_shape[-1] = self.img_shape*2
-        self.d_pair = discriminator(self.img_shape,df,depth)
+        img_shape[-1] = self.img_shape[-1]*2
+        self.d_pair = discriminator(img_shape,df,depth)
 
         paired_real = tf.concat([self._xphA_paired,
                                 self._xphB_paired],
@@ -40,7 +46,6 @@ class SemiAdverCycleGAN(CycleGAN):
                                     labels=tf.zeros_like(self._fake_discrimPaired)))
         self._adver_loss = tf.losses.mean_squared_error(predictions=self._fake_discrimPaired,
                                     labels=tf.ones_like(self._fake_discrimPaired))
-
         self._genA_loss += self._ALPHA*self._adver_loss
         self._genB_loss += self._ALPHA*self._adver_loss
 
@@ -58,11 +63,11 @@ class SemiAdverCycleGAN(CycleGAN):
     def _create_optimiser(self,*args,**kwargs):
         super(SemiAdverCycleGAN,self)._create_optimiser(*args,**kwargs)
         discrimpair_solver = tf.contrib.layers.optimize_loss(self._discrimpaired_loss,
-                                                self._epoch,
-                                                 self.initial_learning_rate,
-                                                'Adam',
-                                                variables=self.d_pair.trainable_weights,
-                                                increment_global_step=False,)
+                                        self._epoch,
+                                         self.initial_learning_rate,
+                                        'Adam',
+                                        variables=self.d_pair.trainable_weights,
+                                        increment_global_step=False,)
         with tf.control_dependencies(
             [discrimpair_solver]):
             self._discrimpair_solver = tf.no_op(name='optimisers')

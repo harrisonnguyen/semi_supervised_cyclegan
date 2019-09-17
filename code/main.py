@@ -1,7 +1,8 @@
 import tensorflow as tf
 import pandas as pd
 from model.cyclegan import CycleGAN
-from load_brats_data import load_data,modality_types,get_files
+from model.semiadversarialcycle import SemiAdverCycleGAN
+from load_brats_data import load_data,modality_types,get_data_split
 import click
 import numpy as np
 import csv
@@ -9,7 +10,7 @@ import os
 def index_gen(n_slices,batch_size):
     index = np.array(range(n_slices))
     np.random.shuffle(index)
-    for i in range(int(np.ceil(n_slices/batch_size))):
+    for i in range(int(np.floor(n_slices/batch_size))):
         items = index[i*batch_size:(i+1)*batch_size]
         yield items
 def write_params(params):
@@ -20,7 +21,7 @@ def write_params(params):
     for key, val in params.items():
         w.writerow([key, val])
     return
-
+"""
 def get_data_split(data_dir,modA,modB,unpaired=True):
     df = pd.read_csv(os.path.join("data/","brats_files.csv"))
     df["Filename"] =data_dir + df["Filename"].astype(str)
@@ -36,6 +37,7 @@ def get_data_split(data_dir,modA,modB,unpaired=True):
         setA_files+=list(pair_modA_df.values)
         setB_files+= list(pair_modB_df.values)
     return setA_files,setB_files
+    """
 
 @click.command()
 @click.option('--checkpoint-dir',
@@ -132,7 +134,7 @@ def main(checkpoint_dir,
         cycle_loss_weight,learning_rate,batch_size,n_epochs,summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b):
 
     image_size = [240,240,155,1]
-    gan = CycleGAN(checkpoint_dir,
+    gan = SemiAdverCycleGAN(base_dir=checkpoint_dir,
                     gf=gf,
                     df=df,
                     depth=depth,
@@ -145,19 +147,50 @@ def main(checkpoint_dir,
                     decay_steps=decay_steps)
     params = click.get_current_context().params
     write_params(params)
-    set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
-    dataset_A = load_data(set_A,
+    #set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
+    setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=False,
+    split_filename="data/brats_files.csv")
+    setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=False,
+    split_filename="data/brats_files.csv")
+    pairA_files = get_data_split(
+                    data_dir,
+                    mod_a,
+                    "pair",
+                    include_pair=True,
+                    split_filename="data/brats_files.csv")
+    pairB_files = get_data_split(
+                    data_dir,
+                    mod_b,
+                    "pair",
+                    include_pair=True,
+                    split_filename="data/brats_files.csv")
+    valA_files = get_data_split(data_dir,mod_a,"test","data/brats_files.csv")
+    valB_files = get_data_split(data_dir,mod_b,"test","data/brats_files.csv")
+    training = load_data(setA_files,
+                        setB_files,
                         image_size=image_size,
-                        buffer_size=20)
-    dataset_B = load_data(set_B,
+                        buffer_size=10)
+    pair_training = load_data(pairA_files,
+                        pairB_files,
                         image_size=image_size,
-                        buffer_size=20)
+                        buffer_size=10,
+                        repeat=None)
+    val = load_data(valA_files[0],
+                    valB_files[0],
+                        image_size=image_size,
+                        buffer_size=1,
+                        shuffle=False,
+                        repeat=None)
 
     sess = gan.sess
-    iterator_A = tf.compat.v1.data.make_initializable_iterator(dataset_A)
-    iterator_B = tf.compat.v1.data.make_initializable_iterator(dataset_B)
-    next_A = iterator_A.get_next()
-    next_B = iterator_B.get_next()
+    iterator_training = tf.compat.v1.data.make_initializable_iterator(training)
+    next_training = iterator_training.get_next()
+    iterator_val = tf.compat.v1.data.make_initializable_iterator(val)
+    next_val = iterator_val.get_next()
+    iterator_training_pair = tf.compat.v1.data.make_initializable_iterator(pair_training)
+    next_training_pair = iterator_training_pair.get_next()
+    sess.run(iterator_val.initializer)
+    sess.run(iterator_training_pair.initializer)
     try:
         i = gan.restore_latest_checkpoint()
         print("Restoring at step {}".format(i))
@@ -165,23 +198,34 @@ def main(checkpoint_dir,
         i = 0
         print("Creating new model")
     for k in range(n_epochs):
-        sess.run(iterator_A.initializer)
-        sess.run(iterator_B.initializer)
+        sess.run(iterator_training.initializer)
         while True:
             try:
-                img_A = sess.run(next_A)
-                img_B = sess.run(next_B)
+                img_A,img_B = sess.run(next_training)
+                img_pairA,img_pairB = sess.run(next_training_pair)
+
+                index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
                 gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
                 for ele in gen:
+                    np.random.shuffle(index)
                     write_summary = i%summary_freq == 0
                     epoch = gan.train_step(img_A[ele],
                                             img_B[ele],
+                                            img_pairA[index[:batch_size]],
+                                            img_pairB[index[:batch_size]],
                                             write_summary=write_summary)
                     i+=1
 
             except tf.errors.OutOfRangeError:
-                current_epoch = gan.increment_epoch()
+                # run validation
                 gan.save_checkpoint()
+                img_A,img_B = sess.run(next_val)
+                index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
+                np.random.shuffle(index)
+                values = index[:batch_size*4]
+                gan.validate(img_A[values],
+                                img_B[values])
+                current_epoch = gan.increment_epoch()
                 print("finished epoch %d. Saving checkpoint" %current_epoch)
                 break
 

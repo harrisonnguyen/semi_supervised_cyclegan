@@ -2,6 +2,7 @@ import tensorflow as tf
 import os
 import glob
 from load_mri_data import _parse_image_function,remove_zeros
+import pandas as pd
 
 modality_types = ["t1","t2","t1ce","flair","truth"]
 def augment(image):
@@ -20,15 +21,25 @@ def augment(image):
     image = 2.0*image-1.0
     return image
 
+def map_dataset(file,image_size,buffer_size,shuffle):
 
-def load_data(filenames,
-                image_size,
-                buffer_size=30):
-    dataset = tf.data.TFRecordDataset(filenames)
+    dataset = tf.data.TFRecordDataset(file)
     dataset = dataset.map(lambda x:_parse_image_function(x,image_size))
     dataset = dataset.map(lambda x:augment(x))
-    dataset = dataset.shuffle(buffer_size=buffer_size)
-    dataset= dataset.repeat(1)
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=buffer_size)
+    return dataset
+
+def load_data(fileA,
+                fileB,
+                image_size,
+                buffer_size=30,
+                shuffle=True,
+                repeat=1):
+    datasetA = map_dataset(fileA,image_size,buffer_size,shuffle)
+    datasetB = map_dataset(fileB,image_size,buffer_size,shuffle)
+    dataset =  tf.data.Dataset.zip((datasetA, datasetB))
+    dataset= dataset.repeat(repeat)
     return dataset
 
 def get_files(dir,modality):
@@ -36,6 +47,20 @@ def get_files(dir,modality):
         raise ValueError("Invalid sim type. Expected one of: %s" % modality_types)
     return glob.glob(os.path.join(dir,"*-{}.tfrecords".format(modality)))
 
+def get_data_split(data_dir,modality,set_choice,include_pair=True,split_filename="data/brats_files.csv",):
+    set_choices = ["setA","setB","pair","test"]
+    if modality not in modality_types:
+        raise ValueError("Invalid sim type. Expected one of: %s" % modality_types)
+    if set_choice not in set_choices:
+        raise ValueError("Invalid sim type. Expected one of: %s" % set_choices)
+    df = pd.read_csv(split_filename)
+    set_df = data_dir+ df[df["Set"] == set_choice]["Filename"].astype(str) + "-"+modality+".tfrecords"
+    set_files = list(set_df.values)
+
+    if include_pair:
+        pair_df =data_dir+ df[df["Set"] == "pair"]["Filename"].astype(str) + "-"+modality+".tfrecords"
+        set_files += list(pair_df.values)
+    return set_files
 def main():
     dir = "data/brats2018/"
     files = get_files(dir,"t1")
