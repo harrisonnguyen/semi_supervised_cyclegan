@@ -5,7 +5,7 @@ from tensorflow.keras.models import Model
 import tensorflow as tf
 from model_utils import learning_utils as learning
 class SemiWassersteinCycleGAN(CycleGAN):
-    def __init__(self,mse_weight=1,gradient_penalty_scale=3,*args,**kwargs):
+    def __init__(self,mse_weight=1.0,gradient_penalty_scale=3.0,*args,**kwargs):
         self._ALPHA = mse_weight
         self._SCALE = gradient_penalty_scale
         super(SemiWassersteinCycleGAN,self).__init__(*args,**kwargs)

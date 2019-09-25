@@ -2,6 +2,7 @@ import tensorflow as tf
 import pandas as pd
 from model.cyclegan import CycleGAN
 from model.semiadversarialcycle import SemiAdverCycleGAN
+from model.cwrgan import SemiWassersteinCycleGAN
 from load_brats_data import modality_types,get_generator
 import click
 import numpy as np
@@ -24,6 +25,44 @@ def write_params(params):
         w.writerow([key, val])
     return
 
+def train_semi(i,next_training,next_training_pair):
+    img_A,img_B = sess.run(next_training)
+    img_pairA,img_pairB = sess.run(next_training_pair)
+
+    index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
+    gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
+    for ele in gen:
+        np.random.shuffle(index)
+        write_summary = i%summary_freq == 0
+        epoch = gan.train_step(img_A[ele],
+                                img_B[ele],
+                                img_pairA[index[:batch_size]],
+                                img_pairB[index[:batch_size]],
+                                write_summary=write_summary)
+        i+=1
+    return i
+
+def train_cycle(i,next_training):
+    img_A,img_B = sess.run(next_training)
+    gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
+    for ele in gen:
+        write_summary = i%summary_freq == 0
+        epoch = gan.train_step(img_A[ele],
+                                img_B[ele],
+                                write_summary=write_summary)
+    i+=1
+    return i
+
+def validate(gan,next_val,batch_size):
+    gan.save_checkpoint()
+    img_A,img_B = sess.run(next_val)
+    index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
+    np.random.shuffle(index)
+    values = index[:batch_size*4]
+    gan.validate(img_A[values],
+                    img_B[values])
+    current_epoch = gan.increment_epoch()
+    print("finished epoch %d. Saving checkpoint" %current_epoch)
 @click.command()
 @click.option('--checkpoint-dir',
             type=click.Path(
@@ -115,7 +154,7 @@ def write_params(params):
              show_default=True)
 @click.option('--model',
             default="semi",
-            type=click.Choice(["cycle","semi"]),
+            type=click.Choice(["cycle","semi","wasser"]),
              help="Choice of model type",
              show_default=True)
 @click.option('--dataset',
@@ -159,6 +198,19 @@ def main(checkpoint_dir,
                         end_learning_rate=end_learning_rate,
                         decay_steps=decay_steps)
         include_pair = False
+    elif model == "wasser":
+        gan = SemiWassersteinCycleGAN(base_dir=checkpoint_dir,
+                        gf=gf,
+                        df=df,
+                        depth=depth,
+                        patch_size=patch_size,
+                        n_modality=n_channels,
+                        cycle_loss_weight=cycle_loss_weight,
+                        initial_learning_rate=learning_rate,
+                        begin_decay=begin_decay,
+                        end_learning_rate=end_learning_rate,
+                        decay_steps=decay_steps)
+        include_pair = True
     dataset_gen = get_generator(
                     data_dir,
                     image_size,mod_a,mod_b,
@@ -224,40 +276,14 @@ def main(checkpoint_dir,
         sess.run(iterator_training.initializer)
         while True:
             try:
-                i = train_semi(i,next_training,next_training_pair)
+                if include_pair:
+                    i = train_semi(i,next_training,next_training_pair)
+                else:
+                    i = train_cycle(i,next_training)
             except tf.errors.OutOfRangeError:
                 # run validation
                 validate(gan,next_val,batch_size)
                 break
-
-def train_semi(i,next_training,next_training_pair):
-    img_A,img_B = sess.run(next_training)
-    img_pairA,img_pairB = sess.run(next_training_pair)
-
-    index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
-    gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
-    for ele in gen:
-        np.random.shuffle(index)
-        write_summary = i%summary_freq == 0
-        epoch = gan.train_step(img_A[ele],
-                                img_B[ele],
-                                img_pairA[index[:batch_size]],
-                                img_pairB[index[:batch_size]],
-                                write_summary=write_summary)
-        i+=1
-    return i
-
-def validate(gan,next_val,batch_size):
-    gan.save_checkpoint()
-    img_A,img_B = sess.run(next_val)
-    index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
-    np.random.shuffle(index)
-    values = index[:batch_size*4]
-    gan.validate(img_A[values],
-                    img_B[values])
-    current_epoch = gan.increment_epoch()
-    print("finished epoch %d. Saving checkpoint" %current_epoch)
-
 
 if __name__ == "__main__":
     main()
