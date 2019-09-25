@@ -61,6 +61,49 @@ def get_data_split(data_dir,modality,set_choice,include_pair=True,split_filename
         pair_df =data_dir+ df[df["Set"] == "pair"]["Filename"].astype(str) + "-"+modality+".tfrecords"
         set_files += list(pair_df.values)
     return set_files
+
+def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
+                    split_filename="data/brats_files.csv",buffer_size=10):
+    generator_dict = {}
+    setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=False,
+    split_filename=split_filename)
+    setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=False,
+    split_filename=split_filename)
+    training = load_data(setA_files,
+                        setB_files,
+                        image_size=image_size,
+                        buffer_size=10)
+    generator_dict["training"] = training
+    if include_pair:
+        pairA_files = get_data_split(
+                        data_dir,
+                        mod_a,
+                        "pair",
+                        include_pair=True,
+                        split_filename=split_filename)
+        pairB_files = get_data_split(
+                        data_dir,
+                        mod_b,
+                        "pair",
+                        include_pair=True,
+                        split_filename="data/brats_files.csv")
+        pair_training = load_data(pairA_files,
+                            pairB_files,
+                            image_size=image_size,
+                            buffer_size=10,
+                            repeat=None)
+        generator_dict["pair"] = pair_training
+    valA_files = get_data_split(data_dir,mod_a,"test",split_filename)
+    valB_files = get_data_split(data_dir,mod_b,"test",split_filename)
+    val = load_data(valA_files[0],
+                    valB_files[0],
+                        image_size=image_size,
+                        buffer_size=1,
+                        shuffle=False,
+                        repeat=None)
+    generator_dict["val"] = val
+    return generator_dict
+
 def main():
     dir = "data/brats2018/"
     files = get_files(dir,"t1")

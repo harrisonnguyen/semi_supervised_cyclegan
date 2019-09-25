@@ -2,7 +2,7 @@ import tensorflow as tf
 import pandas as pd
 from model.cyclegan import CycleGAN
 from model.semiadversarialcycle import SemiAdverCycleGAN
-from load_brats_data import load_data,modality_types,get_data_split
+from load_brats_data import modality_types,get_generator
 import click
 import numpy as np
 import csv
@@ -14,6 +14,8 @@ def index_gen(n_slices,batch_size):
         items = index[i*batch_size:(i+1)*batch_size]
         yield items
 def write_params(params):
+    if not os.path.exists(params["checkpoint_dir"]):
+        os.makedirs(params["checkpoint_dir"])
     w = csv.writer(open(
                     os.path.join(params["checkpoint_dir"],
                                 "config.csv"),
@@ -21,23 +23,6 @@ def write_params(params):
     for key, val in params.items():
         w.writerow([key, val])
     return
-"""
-def get_data_split(data_dir,modA,modB,unpaired=True):
-    df = pd.read_csv(os.path.join("data/","brats_files.csv"))
-    df["Filename"] =data_dir + df["Filename"].astype(str)
-    modA_suf = "-"+modA+".tfrecords"
-    modB_suf = "-"+modB+".tfrecords"
-    setA_df = df[df["Set"] == "setA"]["Filename"].astype(str) + modA_suf
-    setB_df = df[df["Set"] == "setB"]["Filename"].astype(str) + modB_suf
-    setA_files = list(setA_df.values)
-    setB_files = list(setB_df.values)
-    if unpaired:
-        pair_modA_df = df[df["Set"] == "pair"]["Filename"].astype(str) + modA_suf
-        pair_modB_df = df[df["Set"] == "pair"]["Filename"].astype(str) + modB_suf
-        setA_files+=list(pair_modA_df.values)
-        setB_files+= list(pair_modB_df.values)
-    return setA_files,setB_files
-    """
 
 @click.command()
 @click.option('--checkpoint-dir',
@@ -128,26 +113,59 @@ def get_data_split(data_dir,modA,modB,unpaired=True):
             type=click.Choice(modality_types),
              help="Choice of brats modality",
              show_default=True)
+@click.option('--model',
+            default="semi",
+            type=click.Choice(["cycle","semi"]),
+             help="Choice of model type",
+             show_default=True)
+@click.option('--dataset',
+            default="brats",
+            type=click.Choice(["brats"]),
+             help="Choice of model type",
+             show_default=True)
 def main(checkpoint_dir,
         data_dir,
         gf,df,depth,patch_size,n_channels,
-        cycle_loss_weight,learning_rate,batch_size,n_epochs,summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b):
-
-    image_size = [240,240,155,1]
-    gan = SemiAdverCycleGAN(base_dir=checkpoint_dir,
-                    gf=gf,
-                    df=df,
-                    depth=depth,
-                    patch_size=patch_size,
-                    n_modality=n_channels,
-                    cycle_loss_weight=cycle_loss_weight,
-                    initial_learning_rate=learning_rate,
-                    begin_decay=begin_decay,
-                    end_learning_rate=end_learning_rate,
-                    decay_steps=decay_steps)
+        cycle_loss_weight,learning_rate,batch_size,n_epochs,
+        summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b,
+        model,dataset):
     params = click.get_current_context().params
     write_params(params)
+    if dataset == "brats":
+        image_size = [240,240,155,1]
+    if model == "semi":
+        gan = SemiAdverCycleGAN(base_dir=checkpoint_dir,
+                        gf=gf,
+                        df=df,
+                        depth=depth,
+                        patch_size=patch_size,
+                        n_modality=n_channels,
+                        cycle_loss_weight=cycle_loss_weight,
+                        initial_learning_rate=learning_rate,
+                        begin_decay=begin_decay,
+                        end_learning_rate=end_learning_rate,
+                        decay_steps=decay_steps)
+        include_pair = True
+    elif model == "cycle":
+        gan = CycleGAN(base_dir=checkpoint_dir,
+                        gf=gf,
+                        df=df,
+                        depth=depth,
+                        patch_size=patch_size,
+                        n_modality=n_channels,
+                        cycle_loss_weight=cycle_loss_weight,
+                        initial_learning_rate=learning_rate,
+                        begin_decay=begin_decay,
+                        end_learning_rate=end_learning_rate,
+                        decay_steps=decay_steps)
+        include_pair = False
+    dataset_gen = get_generator(
+                    data_dir,
+                    image_size,mod_a,mod_b,
+                    include_pair=include_pair,
+                        )
     #set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
+    """
     setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=False,
     split_filename="data/brats_files.csv")
     setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=False,
@@ -181,53 +199,64 @@ def main(checkpoint_dir,
                         buffer_size=1,
                         shuffle=False,
                         repeat=None)
+    """
 
     sess = gan.sess
-    iterator_training = tf.compat.v1.data.make_initializable_iterator(training)
+    iterator_training = tf.compat.v1.data.make_initializable_iterator(dataset_gen["training"])
     next_training = iterator_training.get_next()
-    iterator_val = tf.compat.v1.data.make_initializable_iterator(val)
+    iterator_val = tf.compat.v1.data.make_initializable_iterator(dataset_gen["val"])
     next_val = iterator_val.get_next()
-    iterator_training_pair = tf.compat.v1.data.make_initializable_iterator(pair_training)
-    next_training_pair = iterator_training_pair.get_next()
     sess.run(iterator_val.initializer)
-    sess.run(iterator_training_pair.initializer)
+    if include_pair:
+        iterator_training_pair = tf.compat.v1.data.make_initializable_iterator(dataset_gen["pair"])
+        next_training_pair = iterator_training_pair.get_next()
+        sess.run(iterator_training_pair.initializer)
+    # load existing model
     try:
         i = gan.restore_latest_checkpoint()
         print("Restoring at step {}".format(i))
     except:
         i = 0
         print("Creating new model")
+
+    # begin training
     for k in range(n_epochs):
         sess.run(iterator_training.initializer)
         while True:
             try:
-                img_A,img_B = sess.run(next_training)
-                img_pairA,img_pairB = sess.run(next_training_pair)
-
-                index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
-                gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
-                for ele in gen:
-                    np.random.shuffle(index)
-                    write_summary = i%summary_freq == 0
-                    epoch = gan.train_step(img_A[ele],
-                                            img_B[ele],
-                                            img_pairA[index[:batch_size]],
-                                            img_pairB[index[:batch_size]],
-                                            write_summary=write_summary)
-                    i+=1
-
+                i = train_semi(i,next_training,next_training_pair)
             except tf.errors.OutOfRangeError:
                 # run validation
-                gan.save_checkpoint()
-                img_A,img_B = sess.run(next_val)
-                index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
-                np.random.shuffle(index)
-                values = index[:batch_size*4]
-                gan.validate(img_A[values],
-                                img_B[values])
-                current_epoch = gan.increment_epoch()
-                print("finished epoch %d. Saving checkpoint" %current_epoch)
+                validate(gan,next_val,batch_size)
                 break
+
+def train_semi(i,next_training,next_training_pair):
+    img_A,img_B = sess.run(next_training)
+    img_pairA,img_pairB = sess.run(next_training_pair)
+
+    index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
+    gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
+    for ele in gen:
+        np.random.shuffle(index)
+        write_summary = i%summary_freq == 0
+        epoch = gan.train_step(img_A[ele],
+                                img_B[ele],
+                                img_pairA[index[:batch_size]],
+                                img_pairB[index[:batch_size]],
+                                write_summary=write_summary)
+        i+=1
+    return i
+
+def validate(gan,next_val,batch_size):
+    gan.save_checkpoint()
+    img_A,img_B = sess.run(next_val)
+    index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
+    np.random.shuffle(index)
+    values = index[:batch_size*4]
+    gan.validate(img_A[values],
+                    img_B[values])
+    current_epoch = gan.increment_epoch()
+    print("finished epoch %d. Saving checkpoint" %current_epoch)
 
 
 if __name__ == "__main__":
