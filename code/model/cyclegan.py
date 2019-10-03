@@ -107,18 +107,18 @@ class CycleGAN(object):
                                 predictions=self._fakeA,
                                 labels=tf.ones_like(self._fakeA))
                      +      self._LAMBDA*self._cycle_loss
-                     +  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                            predictions=self._img_A_id,
-                            labels=self._xphA)
+                     #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                    #        predictions=self._img_A_id,
+                    #        labels=self._xphA)
                      )
 
         self._genB_loss = (tf.losses.mean_squared_error(
                                 predictions=self._fakeB,
                                  labels=tf.ones_like(self._fakeB))
                       + self._LAMBDA*self._cycle_loss
-                      +  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                             predictions=self._img_B_id,
-                             labels=self._xphB)
+                      #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                    #         predictions=self._img_B_id,
+                    #         labels=self._xphB)
                       )
 
         self._reconstruction_loss = tf.losses.mean_squared_error(predictions=self._predictedB,

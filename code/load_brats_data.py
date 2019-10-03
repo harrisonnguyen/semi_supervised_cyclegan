@@ -9,8 +9,8 @@ def augment(image):
     image = image['img']
 
     image = tf.transpose(image,[2,0,1,3])
-    paddings = tf.constant([[0,0,],[8,8,],[8,8],[0,0]])
-    image = tf.pad(image,paddings,"CONSTANT")
+    #paddings = tf.constant([[0,0,],[8,8,],[8,8],[0,0]])
+    #image = tf.pad(image,paddings,"CONSTANT")
     # remove any slices that contain 0
 
     image = remove_zeros(image)
@@ -66,9 +66,9 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
                     split_filename="data/brats_files.csv",buffer_size=10):
     generator_dict = {}
     setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=False,
-    split_filename=split_filename)
+    split_filename=split_filename)[:2]
     setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=False,
-    split_filename=split_filename)
+    split_filename=split_filename)[:2]
     training = load_data(setA_files,
                         setB_files,
                         image_size=image_size,

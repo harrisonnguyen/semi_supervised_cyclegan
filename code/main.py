@@ -25,31 +25,33 @@ def write_params(params):
         w.writerow([key, val])
     return
 
-def train_semi(i,next_training,next_training_pair):
-    img_A,img_B = sess.run(next_training)
-    img_pairA,img_pairB = sess.run(next_training_pair)
+def train_semi(gan,i,next_training,next_training_pair):
+    img_A,img_B = gan.sess.run(next_training)
+    img_pairA,img_pairB = gan.sess.run(next_training_pair)
 
     index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
     gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
     for ele in gen:
         np.random.shuffle(index)
         write_summary = i%summary_freq == 0
-        epoch = gan.train_step(img_A[ele],
-                                img_B[ele],
-                                img_pairA[index[:batch_size]],
-                                img_pairB[index[:batch_size]],
-                                write_summary=write_summary)
+        epoch = gan.train_step(
+                    img_A[ele],
+                    img_B[ele],
+                    img_pairA[index[:batch_size]],
+                    img_pairB[index[:batch_size]],
+                    write_summary=write_summary)
         i+=1
     return i
 
-def train_cycle(i,next_training):
-    img_A,img_B = sess.run(next_training)
+def train_cycle(gan,i,next_training):
+    img_A,img_B = gan.sess.run(next_training)
     gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
     for ele in gen:
         write_summary = i%summary_freq == 0
-        epoch = gan.train_step(img_A[ele],
-                                img_B[ele],
-                                write_summary=write_summary)
+        epoch = gan.train_step(
+                    img_A[ele],
+                    img_B[ele],
+                    write_summary=write_summary)
     i+=1
     return i
 
@@ -59,8 +61,9 @@ def validate(gan,next_val,batch_size):
     index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
     np.random.shuffle(index)
     values = index[:batch_size*4]
-    gan.validate(img_A[values],
-                    img_B[values])
+    gan.validate(
+        img_A[values],
+        img_B[values])
     current_epoch = gan.increment_epoch()
     print("finished epoch %d. Saving checkpoint" %current_epoch)
 @click.command()
@@ -173,43 +176,46 @@ def main(checkpoint_dir,
     if dataset == "brats":
         image_size = [240,240,155,1]
     if model == "semi":
-        gan = SemiAdverCycleGAN(base_dir=checkpoint_dir,
-                        gf=gf,
-                        df=df,
-                        depth=depth,
-                        patch_size=patch_size,
-                        n_modality=n_channels,
-                        cycle_loss_weight=cycle_loss_weight,
-                        initial_learning_rate=learning_rate,
-                        begin_decay=begin_decay,
-                        end_learning_rate=end_learning_rate,
-                        decay_steps=decay_steps)
+        gan = SemiAdverCycleGAN(
+                base_dir=os.path.join(checkpoint_dir,model),
+                gf=gf,
+                df=df,
+                depth=depth,
+                patch_size=patch_size,
+                n_modality=n_channels,
+                cycle_loss_weight=cycle_loss_weight,
+                initial_learning_rate=learning_rate,
+                begin_decay=begin_decay,
+                end_learning_rate=end_learning_rate,
+                decay_steps=decay_steps)
         include_pair = True
     elif model == "cycle":
-        gan = CycleGAN(base_dir=checkpoint_dir,
-                        gf=gf,
-                        df=df,
-                        depth=depth,
-                        patch_size=patch_size,
-                        n_modality=n_channels,
-                        cycle_loss_weight=cycle_loss_weight,
-                        initial_learning_rate=learning_rate,
-                        begin_decay=begin_decay,
-                        end_learning_rate=end_learning_rate,
-                        decay_steps=decay_steps)
+        gan = CycleGAN(
+                base_dir=os.path.join(checkpoint_dir,model),
+                gf=gf,
+                df=df,
+                depth=depth,
+                patch_size=patch_size,
+                n_modality=n_channels,
+                cycle_loss_weight=cycle_loss_weight,
+                initial_learning_rate=learning_rate,
+                begin_decay=begin_decay,
+                end_learning_rate=end_learning_rate,
+                decay_steps=decay_steps)
         include_pair = False
     elif model == "wasser":
-        gan = SemiWassersteinCycleGAN(base_dir=checkpoint_dir,
-                        gf=gf,
-                        df=df,
-                        depth=depth,
-                        patch_size=patch_size,
-                        n_modality=n_channels,
-                        cycle_loss_weight=cycle_loss_weight,
-                        initial_learning_rate=learning_rate,
-                        begin_decay=begin_decay,
-                        end_learning_rate=end_learning_rate,
-                        decay_steps=decay_steps)
+        gan = SemiWassersteinCycleGAN(
+                base_dir=os.path.join(checkpoint_dir,model),
+                gf=gf,
+                df=df,
+                depth=depth,
+                patch_size=patch_size,
+                n_modality=n_channels,
+                cycle_loss_weight=cycle_loss_weight,
+                initial_learning_rate=learning_rate,
+                begin_decay=begin_decay,
+                end_learning_rate=end_learning_rate,
+                decay_steps=decay_steps)
         include_pair = True
     dataset_gen = get_generator(
                     data_dir,
@@ -277,9 +283,9 @@ def main(checkpoint_dir,
         while True:
             try:
                 if include_pair:
-                    i = train_semi(i,next_training,next_training_pair)
+                    i = train_semi(gan,i,next_training,next_training_pair)
                 else:
-                    i = train_cycle(i,next_training)
+                    i = train_cycle(gan,i,next_training)
             except tf.errors.OutOfRangeError:
                 # run validation
                 validate(gan,next_val,batch_size)
