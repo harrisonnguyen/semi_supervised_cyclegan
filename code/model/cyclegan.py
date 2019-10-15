@@ -107,18 +107,18 @@ class CycleGAN(object):
                                 predictions=self._fakeA,
                                 labels=tf.ones_like(self._fakeA))
                      +      self._LAMBDA*self._cycle_loss
-                     #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                    #        predictions=self._img_A_id,
-                    #        labels=self._xphA)
+                     +  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                            predictions=self._img_A_id,
+                            labels=self._xphA)
                      )
 
         self._genB_loss = (tf.losses.mean_squared_error(
                                 predictions=self._fakeB,
                                  labels=tf.ones_like(self._fakeB))
                       + self._LAMBDA*self._cycle_loss
-                      #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                    #         predictions=self._img_B_id,
-                    #         labels=self._xphB)
+                      +  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                             predictions=self._img_B_id,
+                             labels=self._xphB)
                       )
 
         self._reconstruction_loss = tf.losses.mean_squared_error(predictions=self._predictedB,
@@ -134,7 +134,7 @@ class CycleGAN(object):
                             x,y,
                             self.begin_decay,
                             decay_steps=self.decay_steps,
-                            end_learning_rate=self.end_learning_rate/2.0))
+                            end_learning_rate=self.end_learning_rate/4.0))
         genA_solver = tf.contrib.layers.optimize_loss(
                             self._genA_loss,
                             self._epoch,
@@ -154,7 +154,7 @@ class CycleGAN(object):
         discrimA_solver= tf.contrib.layers.optimize_loss(
                             self._discrimA_loss,
                             self._epoch,
-                             self.initial_learning_rate/2.0,
+                             self.initial_learning_rate/4.0,
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_A.trainable_weights,

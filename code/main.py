@@ -8,24 +8,29 @@ import click
 import numpy as np
 import csv
 import os
+import random
+import string
 def index_gen(n_slices,batch_size):
     index = np.array(range(n_slices))
     np.random.shuffle(index)
     for i in range(int(np.floor(n_slices/batch_size))):
         items = index[i*batch_size:(i+1)*batch_size]
         yield items
-def write_params(params):
-    if not os.path.exists(params["checkpoint_dir"]):
-        os.makedirs(params["checkpoint_dir"])
+def write_params(params,checkpoint_dir):
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
     w = csv.writer(open(
-                    os.path.join(params["checkpoint_dir"],
+                    os.path.join(checkpoint_dir,
                                 "config.csv"),
                     "w+"))
     for key, val in params.items():
         w.writerow([key, val])
     return
+def generate_experiment_id(length=6):
+    letters = string.ascii_uppercase
+    return ''.join(random.choice(letters) for i in range(length))
 
-def train_semi(gan,i,next_training,next_training_pair):
+def train_semi(gan,i,next_training,next_training_pair,batch_size,summary_freq):
     img_A,img_B = gan.sess.run(next_training)
     img_pairA,img_pairB = gan.sess.run(next_training_pair)
 
@@ -43,7 +48,7 @@ def train_semi(gan,i,next_training,next_training_pair):
         i+=1
     return i
 
-def train_cycle(gan,i,next_training):
+def train_cycle(gan,i,next_training,batch_size,summary_freq):
     img_A,img_B = gan.sess.run(next_training)
     gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
     for ele in gen:
@@ -56,16 +61,15 @@ def train_cycle(gan,i,next_training):
     return i
 
 def validate(gan,next_val,batch_size):
-    gan.save_checkpoint()
-    img_A,img_B = sess.run(next_val)
+
+    img_A,img_B = gan.sess.run(next_val)
     index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
     np.random.shuffle(index)
-    values = index[:batch_size*4]
+    values = index[:batch_size*20]
     gan.validate(
         img_A[values],
         img_B[values])
-    current_epoch = gan.increment_epoch()
-    print("finished epoch %d. Saving checkpoint" %current_epoch)
+
 @click.command()
 @click.option('--checkpoint-dir',
             type=click.Path(
@@ -165,19 +169,28 @@ def validate(gan,next_val,batch_size):
             type=click.Choice(["brats"]),
              help="Choice of model type",
              show_default=True)
+@click.option('--experiment_id',
+            default=0,
+            type=click.INT,
+             help="Experiment id",
+             show_default=True)
 def main(checkpoint_dir,
         data_dir,
         gf,df,depth,patch_size,n_channels,
         cycle_loss_weight,learning_rate,batch_size,n_epochs,
         summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b,
-        model,dataset):
+        model,dataset,experiment_id):
     params = click.get_current_context().params
-    write_params(params)
+    checkpoint_dir= os.path.join(checkpoint_dir,dataset)
+    checkpoint_dir = os.path.join(checkpoint_dir,"{}_{}".format(mod_a,mod_b))
+    checkpoint_dir= os.path.join(checkpoint_dir,model)
+    checkpoint_dir= os.path.join(checkpoint_dir,"experiment{}".format(experiment_id))
+    write_params(params,checkpoint_dir)
     if dataset == "brats":
         image_size = [240,240,155,1]
     if model == "semi":
         gan = SemiAdverCycleGAN(
-                base_dir=os.path.join(checkpoint_dir,model),
+                base_dir=checkpoint_dir,
                 gf=gf,
                 df=df,
                 depth=depth,
@@ -191,7 +204,7 @@ def main(checkpoint_dir,
         include_pair = True
     elif model == "cycle":
         gan = CycleGAN(
-                base_dir=os.path.join(checkpoint_dir,model),
+                base_dir=checkpoint_dir,
                 gf=gf,
                 df=df,
                 depth=depth,
@@ -205,7 +218,7 @@ def main(checkpoint_dir,
         include_pair = False
     elif model == "wasser":
         gan = SemiWassersteinCycleGAN(
-                base_dir=os.path.join(checkpoint_dir,model),
+                base_dir=checkpoint_dir,
                 gf=gf,
                 df=df,
                 depth=depth,
@@ -223,42 +236,6 @@ def main(checkpoint_dir,
                     include_pair=include_pair,
                         )
     #set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
-    """
-    setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=False,
-    split_filename="data/brats_files.csv")
-    setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=False,
-    split_filename="data/brats_files.csv")
-    pairA_files = get_data_split(
-                    data_dir,
-                    mod_a,
-                    "pair",
-                    include_pair=True,
-                    split_filename="data/brats_files.csv")
-    pairB_files = get_data_split(
-                    data_dir,
-                    mod_b,
-                    "pair",
-                    include_pair=True,
-                    split_filename="data/brats_files.csv")
-    valA_files = get_data_split(data_dir,mod_a,"test","data/brats_files.csv")
-    valB_files = get_data_split(data_dir,mod_b,"test","data/brats_files.csv")
-    training = load_data(setA_files,
-                        setB_files,
-                        image_size=image_size,
-                        buffer_size=10)
-    pair_training = load_data(pairA_files,
-                        pairB_files,
-                        image_size=image_size,
-                        buffer_size=10,
-                        repeat=None)
-    val = load_data(valA_files[0],
-                    valB_files[0],
-                        image_size=image_size,
-                        buffer_size=1,
-                        shuffle=False,
-                        repeat=None)
-    """
-
     sess = gan.sess
     iterator_training = tf.compat.v1.data.make_initializable_iterator(dataset_gen["training"])
     next_training = iterator_training.get_next()
@@ -283,10 +260,13 @@ def main(checkpoint_dir,
         while True:
             try:
                 if include_pair:
-                    i = train_semi(gan,i,next_training,next_training_pair)
+                    i = train_semi(gan,i,next_training,next_training_pair,batch_size,summary_freq)
                 else:
-                    i = train_cycle(gan,i,next_training)
+                    i = train_cycle(gan,i,next_training,batch_size,summary_freq)
             except tf.errors.OutOfRangeError:
+                gan.save_checkpoint()
+                current_epoch = gan.increment_epoch()
+                print("finished epoch %d. Saving checkpoint" %current_epoch)
                 # run validation
                 validate(gan,next_val,batch_size)
                 break
