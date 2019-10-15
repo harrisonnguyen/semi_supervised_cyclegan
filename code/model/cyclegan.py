@@ -2,7 +2,7 @@ from __future__ import print_function, division
 import tensorflow as tf
 
 from keras import backend as K
-from model.network import generator,discriminator
+from model.network import generator,discriminator,resnet_gen
 from utils.learning_decay import linear_decay
 
 from model_utils import learning_utils as learning
@@ -62,8 +62,8 @@ class CycleGAN(object):
         self._epoch = tf.Variable(0,trainable=False,dtype=tf.int32)
         self._epoch_inc = tf.assign_add(self._epoch,1)
 
-        self.g_AB = generator(self.img_shape,gf,depth)
-        self.g_BA = generator(self.img_shape,gf,depth)
+        self.g_AB = resnet_gen(self.img_shape,gf,depth)
+        self.g_BA = resnet_gen(self.img_shape,gf,depth)
 
         # translate images to new domain
         self._predictedB = self.g_AB(self._xphA)
@@ -107,18 +107,18 @@ class CycleGAN(object):
                                 predictions=self._fakeA,
                                 labels=tf.ones_like(self._fakeA))
                      +      self._LAMBDA*self._cycle_loss
-                     +  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                            predictions=self._img_A_id,
-                            labels=self._xphA)
+                     #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                    #        predictions=self._img_A_id,
+                    #        labels=self._xphA)
                      )
 
         self._genB_loss = (tf.losses.mean_squared_error(
                                 predictions=self._fakeB,
                                  labels=tf.ones_like(self._fakeB))
                       + self._LAMBDA*self._cycle_loss
-                      +  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                             predictions=self._img_B_id,
-                             labels=self._xphB)
+                      #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                        #     predictions=self._img_B_id,
+                    #         labels=self._xphB)
                       )
 
         self._reconstruction_loss = tf.losses.mean_squared_error(predictions=self._predictedB,
@@ -134,7 +134,7 @@ class CycleGAN(object):
                             x,y,
                             self.begin_decay,
                             decay_steps=self.decay_steps,
-                            end_learning_rate=self.end_learning_rate/4.0))
+                            end_learning_rate=self.end_learning_rate/2.0))
         genA_solver = tf.contrib.layers.optimize_loss(
                             self._genA_loss,
                             self._epoch,
@@ -154,7 +154,7 @@ class CycleGAN(object):
         discrimA_solver= tf.contrib.layers.optimize_loss(
                             self._discrimA_loss,
                             self._epoch,
-                             self.initial_learning_rate/4.0,
+                             self.initial_learning_rate,
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_A.trainable_weights,
@@ -162,7 +162,7 @@ class CycleGAN(object):
         discrimB_solver = tf.contrib.layers.optimize_loss(
                             self._discrimB_loss,
                             self._epoch,
-                             self.initial_learning_rate/2.0,
+                             self.initial_learning_rate,
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_B.trainable_weights,

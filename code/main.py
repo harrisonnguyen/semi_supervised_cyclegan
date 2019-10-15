@@ -37,13 +37,13 @@ def train_semi(gan,i,next_training,next_training_pair,batch_size,summary_freq):
     index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
     gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
     for ele in gen:
-        np.random.shuffle(index)
+        samples = np.random.randint(0,len(index),batch_size)
         write_summary = i%summary_freq == 0
         epoch = gan.train_step(
                     img_A[ele],
                     img_B[ele],
-                    img_pairA[index[:batch_size]],
-                    img_pairB[index[:batch_size]],
+                    img_pairA[index[samples]],
+                    img_pairB[index[samples]],
                     write_summary=write_summary)
         i+=1
     return i
@@ -57,7 +57,7 @@ def train_cycle(gan,i,next_training,batch_size,summary_freq):
                     img_A[ele],
                     img_B[ele],
                     write_summary=write_summary)
-    i+=1
+        i+=1
     return i
 
 def validate(gan,next_val,batch_size):
@@ -169,7 +169,7 @@ def validate(gan,next_val,batch_size):
             type=click.Choice(["brats"]),
              help="Choice of model type",
              show_default=True)
-@click.option('--experiment_id',
+@click.option('--experiment-id',
             default=0,
             type=click.INT,
              help="Experiment id",
