@@ -14,10 +14,9 @@ def augment(image):
     # remove any slices that contain 0
 
     image = remove_zeros(image)
+
     # normalise between -1 and 1
-
     image = image/tf.reduce_max(image)
-
     image = 2.0*image-1.0
     return image
 
@@ -100,7 +99,7 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
                         image_size=image_size,
                         buffer_size=1,
                         shuffle=False,
-                        repeat=None)
+                        repeat=1)
     generator_dict["val"] = val
     return generator_dict
 

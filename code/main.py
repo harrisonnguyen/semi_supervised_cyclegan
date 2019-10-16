@@ -34,7 +34,7 @@ def train_semi(gan,i,next_training,next_training_pair,batch_size,summary_freq):
     img_A,img_B = gan.sess.run(next_training)
     img_pairA,img_pairB = gan.sess.run(next_training_pair)
 
-    index = np.array(range(0,min(img_pairA.shape[0],img_pairA.shape[0])))
+    index = np.array(range(0,min(img_pairA.shape[0],img_pairB.shape[0])))
     gen = index_gen(min(img_A.shape[0],img_B.shape[0]),batch_size)
     for ele in gen:
         samples = np.random.randint(0,len(index),batch_size)
@@ -60,8 +60,8 @@ def train_cycle(gan,i,next_training,batch_size,summary_freq):
         i+=1
     return i
 
-def validate(gan,next_val,batch_size):
-
+def validate(gan,iterator_val,next_val,batch_size):
+    gan.sess.run(iterator_val.initializer)
     img_A,img_B = gan.sess.run(next_val)
     index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
     np.random.shuffle(index)
@@ -69,6 +69,22 @@ def validate(gan,next_val,batch_size):
     gan.validate(
         img_A[values],
         img_B[values])
+
+def score(gan,iterator,next_set,batch_size):
+    gan.sess.run(iterator.initializer)
+    k = 0
+    total_loss = 0
+    while True:
+        try:
+            img_A,img_B = gan.sess.run(next_set)
+            index = np.array(range(img_A.shape[0]))
+            for i in range(int(np.floor(img_A.shape[0]/batch_size))):
+                items = index[i*batch_size:(i+1)*batch_size]
+                total_loss += gan.score(img_A[items],img_B[items])
+                k+=1
+        except tf.errors.OutOfRangeError:
+            break
+    return total_loss/k
 
 @click.command()
 @click.option('--checkpoint-dir',
@@ -174,12 +190,17 @@ def validate(gan,next_val,batch_size):
             type=click.INT,
              help="Experiment id",
              show_default=True)
+@click.option('--semi-loss-weight',
+            default=1.0,
+            type=click.FLOAT,
+             help="Relative loss of cycle",
+             show_default=True)
 def main(checkpoint_dir,
         data_dir,
         gf,df,depth,patch_size,n_channels,
         cycle_loss_weight,learning_rate,batch_size,n_epochs,
         summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b,
-        model,dataset,experiment_id):
+        model,dataset,experiment_id,semi_loss_weight):
     params = click.get_current_context().params
     checkpoint_dir= os.path.join(checkpoint_dir,dataset)
     checkpoint_dir = os.path.join(checkpoint_dir,"{}_{}".format(mod_a,mod_b))
@@ -200,7 +221,8 @@ def main(checkpoint_dir,
                 initial_learning_rate=learning_rate,
                 begin_decay=begin_decay,
                 end_learning_rate=end_learning_rate,
-                decay_steps=decay_steps)
+                decay_steps=decay_steps,
+                entropy_weight=semi_loss_weight)
         include_pair = True
     elif model == "cycle":
         gan = CycleGAN(
@@ -241,7 +263,7 @@ def main(checkpoint_dir,
     next_training = iterator_training.get_next()
     iterator_val = tf.compat.v1.data.make_initializable_iterator(dataset_gen["val"])
     next_val = iterator_val.get_next()
-    sess.run(iterator_val.initializer)
+    #sess.run(iterator_val.initializer)
     if include_pair:
         iterator_training_pair = tf.compat.v1.data.make_initializable_iterator(dataset_gen["pair"])
         next_training_pair = iterator_training_pair.get_next()
@@ -268,8 +290,11 @@ def main(checkpoint_dir,
                 current_epoch = gan.increment_epoch()
                 print("finished epoch %d. Saving checkpoint" %current_epoch)
                 # run validation
-                validate(gan,next_val,batch_size)
+                validate(gan,iterator_val,next_val,batch_size)
                 break
+
+    val_score = score(gan,iterator_val,next_val,batch_size)
+    print("Validation_score: {%.02f}".format(val_score))
 
 if __name__ == "__main__":
     main()
