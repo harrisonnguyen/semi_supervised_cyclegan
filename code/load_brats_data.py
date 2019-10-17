@@ -5,9 +5,8 @@ from load_mri_data import _parse_image_function,remove_zeros
 import pandas as pd
 
 modality_types = ["t1","t2","t1ce","flair","truth"]
-def preprocess(image,augment_data=False):
-    image = image['img']
 
+def _preprocess(image,augment_data):
     image = tf.transpose(image,[2,0,1,3])
 
     if augment_data:
@@ -19,8 +18,21 @@ def preprocess(image,augment_data=False):
     image = image/tf.reduce_max(image)
     image = 2.0*image-1.0
     return image
+def preprocess(image,augment_data=False):
+    image = image['img']
+    image = _preprocess(image,augment_data)
+    return image
+
+def preprocess_pair(imageA,imageB,augment_data=False):
+    imageA = imageA['img']
+    imageB = imageB['img']
+    image = tf.concat([imageA,imageB],axis=-1)
+
+    image = _preprocess(image,augment_data)
+    return tf.expand_dims(image[:,:,:,0],-1),tf.expand_dims(image[:,:,:,1],-1)
 
 def augment(image):
+    # perform random cropping
     shape = image.get_shape().as_list()
     image = tf.image.random_crop(
                 image,
@@ -32,8 +44,6 @@ def augment(image):
                 shape[1],
                 shape[2])
     return image
-
-
 
 def map_dataset(file,image_size,buffer_size,shuffle,augment_data=False):
 
@@ -54,6 +64,24 @@ def load_data(fileA,
     datasetA = map_dataset(fileA,image_size,buffer_size,shuffle,augment)
     datasetB = map_dataset(fileB,image_size,buffer_size,shuffle,augment)
     dataset =  tf.data.Dataset.zip((datasetA, datasetB))
+    dataset= dataset.repeat(repeat)
+    return dataset
+
+def load_data_pair(fileA,
+                fileB,
+                image_size,
+                buffer_size=30,
+                shuffle=True,
+                repeat=1,
+                augment=False):
+    datasetA = tf.data.TFRecordDataset(fileA)
+    datasetB = tf.data.TFRecordDataset(fileB)
+    datasetA = datasetA.map(lambda x:_parse_image_function(x,image_size))
+    datasetB = datasetB.map(lambda x:_parse_image_function(x,image_size))
+    dataset =  tf.data.Dataset.zip((datasetA, datasetB))
+    dataset = dataset.map(lambda x,y:preprocess_pair(x,y,augment_data=augment))
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=buffer_size)
     dataset= dataset.repeat(repeat)
     return dataset
 
@@ -87,7 +115,7 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
     training = load_data(setA_files,
                         setB_files,
                         image_size=image_size,
-                        buffer_size=10,
+                        buffer_size=5,
                         augment=True)
     generator_dict["training"] = training
     if include_pair:
@@ -103,20 +131,22 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
                         "pair",
                         include_pair=True,
                         split_filename="data/brats_files.csv")
-        pair_training = load_data(pairA_files,
+        pair_training = load_data_pair(pairA_files,
                             pairB_files,
                             image_size=image_size,
-                            buffer_size=10,
-                            repeat=None)
+                            buffer_size=5,
+                            repeat=None,
+                            augment=True)
         generator_dict["pair"] = pair_training
     valA_files = get_data_split(data_dir,mod_a,"test",split_filename)
     valB_files = get_data_split(data_dir,mod_b,"test",split_filename)
-    val = load_data(valA_files[0],
+    val = load_data_pair(valA_files[0],
                     valB_files[0],
                         image_size=image_size,
                         buffer_size=1,
                         shuffle=False,
-                        repeat=1)
+                        repeat=1,
+                        )
     generator_dict["val"] = val
     return generator_dict
 
