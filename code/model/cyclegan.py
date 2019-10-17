@@ -123,6 +123,8 @@ class CycleGAN(object):
 
         self._reconstruction_loss = tf.losses.mean_squared_error(predictions=self._predictedB,
                                                 labels=self._xphB)
+        self._mae = tf.losses.absolute_difference(predictions=self._predictedB,
+                                                labels=self._xphB)
 
     def _create_optimiser(self):
         gen_decay_fn = (lambda x,y:linear_decay(
@@ -234,14 +236,18 @@ class CycleGAN(object):
         self._saver.restore(self.sess,tf.train.latest_checkpoint(self.checkpoint_dir))
         return self.sess.run(self._batch_step)
 
-    def score(self,A,B):
+    def score(self,A,B,method="mse"):
         """
         The score will be determined how well A is transformed to B
         """
+        if method =="mse":
+            loss = self._reconstruction_loss
+        elif method == "mae":
+            loss = self._mae
         data={self._xphA: A,
               self._xphB: B,
               K.learning_phase():False}
-        return self.sess.run(self._reconstruction_loss,
+        return self.sess.run(loss,
                         feed_dict=data)
     def transform_to_A(self,B):
         data={self._xphB: B,

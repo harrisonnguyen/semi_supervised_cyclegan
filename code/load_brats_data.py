@@ -147,7 +147,15 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
                         shuffle=False,
                         repeat=1,
                         )
+    test = load_data_pair(valA_files[1:],
+                    valB_files[1:],
+                        image_size=image_size,
+                        buffer_size=1,
+                        shuffle=False,
+                        repeat=1,
+                        )
     generator_dict["val"] = val
+    generator_dict["test"] = test
     return generator_dict
 
 def main():

@@ -82,7 +82,7 @@ def validate(gan,iterator_val,next_val,batch_size):
         img_A[values],
         img_B[values])
 
-def score(gan,iterator,next_set,batch_size):
+def score(gan,iterator,next_set,batch_size,method="mse"):
     gan.sess.run(iterator.initializer)
     k = 0
     total_loss = 0
@@ -92,7 +92,7 @@ def score(gan,iterator,next_set,batch_size):
             index = np.array(range(img_A.shape[0]))
             for i in range(int(np.floor(img_A.shape[0]/batch_size))):
                 items = index[i*batch_size:(i+1)*batch_size]
-                total_loss += gan.score(img_A[items],img_B[items])
+                total_loss += gan.score(img_A[items],img_B[items],method)
                 k+=1
         except tf.errors.OutOfRangeError:
             break
@@ -279,6 +279,8 @@ def main(checkpoint_dir,
     next_training = iterator_training.get_next()
     iterator_val = tf.compat.v1.data.make_initializable_iterator(dataset_gen["val"])
     next_val = iterator_val.get_next()
+    iterator_test = tf.compat.v1.data.make_initializable_iterator(dataset_gen["test"])
+    next_test = iterator_test.get_next()
     #sess.run(iterator_val.initializer)
     if include_pair:
         iterator_training_pair = tf.compat.v1.data.make_initializable_iterator(dataset_gen["pair"])
@@ -310,7 +312,14 @@ def main(checkpoint_dir,
                 break
 
     val_score = score(gan,iterator_val,next_val,batch_size)
-    print("Validation_score: {:.02f}".format(val_score))
+    print("Val mse: {:.02f}".format(val_score))
+    val_score = score(gan,iterator_val,next_val,batch_size,"mae")
+    print("Val mae: {:.02f}".format(val_score))
+
+    test_score = score(gan,iterator_test,next_test,batch_size)
+    print("test_mse: {:.02f}".format(test_score))
+    test_score = score(gan,iterator_test,next_test,batch_size,"mae")
+    print("test_mae: {:.02f}".format(test_score))
 
 if __name__ == "__main__":
     main()
