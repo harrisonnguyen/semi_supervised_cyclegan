@@ -5,7 +5,7 @@ import itertools
 
 def main():
     file_name = "code/main.py"
-    artemis_file = "code/artemis_experiments.pbs"
+    artemis_file = "artemis_experiments.pbs"
     param_names = [
         "--batch-size",
         "--n-epochs",
@@ -32,7 +32,7 @@ def main():
      ["t1","flair","t1ce"],
      ["cycle"],
      [240],
-     [0,1,2,3,4],
+     [0,1],
      [3],
      [1.0]
     ]
