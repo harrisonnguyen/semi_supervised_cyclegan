@@ -218,7 +218,9 @@ class CycleGAN(object):
 
     def save_checkpoint(self):
         epoch = self.get_epoch()
-        self._saver.save(self.sess, os.path.join(self.checkpoint_dir,"epoch"+str(epoch)+".ckpt"))
+        self._saver.save(self.sess,
+                        os.path.join(self.checkpoint_dir,"epoch"+str(epoch)+".ckpt"),
+                        write_meta_graph=False)
         return epoch
 
     def increment_epoch(self):

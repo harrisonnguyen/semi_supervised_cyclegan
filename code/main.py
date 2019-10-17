@@ -10,6 +10,7 @@ import csv
 import os
 import random
 import string
+import yaml
 def index_gen(n_slices,batch_size):
     index = np.array(range(n_slices))
     np.random.shuffle(index)
@@ -25,7 +26,18 @@ def write_params(params,checkpoint_dir):
                     "w+"))
     for key, val in params.items():
         w.writerow([key, val])
-    return
+    print_settings(params)
+    return params
+
+def print_settings(params):
+    click.secho(
+        "Summary of all parameter settings:\n"
+        "----------------------------------\n"
+        "{}".format(yaml.dump(params, default_flow_style=False)),
+        fg="yellow",
+    )
+    return params
+
 def generate_experiment_id(length=6):
     letters = string.ascii_uppercase
     return ''.join(random.choice(letters) for i in range(length))
@@ -205,6 +217,10 @@ def main(checkpoint_dir,
     checkpoint_dir= os.path.join(checkpoint_dir,dataset)
     checkpoint_dir = os.path.join(checkpoint_dir,"{}_{}".format(mod_a,mod_b))
     checkpoint_dir= os.path.join(checkpoint_dir,model)
+    checkpoint_dir= os.path.join(
+                    checkpoint_dir,
+                    "gf{}_df{}_depth{}_lambda{}_alpha{}".format(
+                    gf,df,depth,cycle_loss_weight,semi_loss_weight))
     checkpoint_dir= os.path.join(checkpoint_dir,"experiment{}".format(experiment_id))
     write_params(params,checkpoint_dir)
     if dataset == "brats":
@@ -294,7 +310,7 @@ def main(checkpoint_dir,
                 break
 
     val_score = score(gan,iterator_val,next_val,batch_size)
-    print("Validation_score: {%.02f}".format(val_score))
+    print("Validation_score: {:.02f}".format(val_score))
 
 if __name__ == "__main__":
     main()

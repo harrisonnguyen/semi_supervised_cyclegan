@@ -5,14 +5,14 @@ from load_mri_data import _parse_image_function,remove_zeros
 import pandas as pd
 
 modality_types = ["t1","t2","t1ce","flair","truth"]
-def augment(image):
+def preprocess(image,augment_data=False):
     image = image['img']
 
     image = tf.transpose(image,[2,0,1,3])
-    #paddings = tf.constant([[0,0,],[8,8,],[8,8],[0,0]])
-    #image = tf.pad(image,paddings,"CONSTANT")
-    # remove any slices that contain 0
 
+    if augment_data:
+        image = augment(image)
+    # remove any slices that contain 0
     image = remove_zeros(image)
 
     # normalise between -1 and 1
@@ -20,11 +20,26 @@ def augment(image):
     image = 2.0*image-1.0
     return image
 
-def map_dataset(file,image_size,buffer_size,shuffle):
+def augment(image):
+    shape = image.get_shape().as_list()
+    image = tf.image.random_crop(
+                image,
+                [shape[0],180,220,shape[-1]],)
+    image = tf.image.pad_to_bounding_box(
+                image,
+                30,
+                10,
+                shape[1],
+                shape[2])
+    return image
+
+
+
+def map_dataset(file,image_size,buffer_size,shuffle,augment_data=False):
 
     dataset = tf.data.TFRecordDataset(file)
     dataset = dataset.map(lambda x:_parse_image_function(x,image_size))
-    dataset = dataset.map(lambda x:augment(x))
+    dataset = dataset.map(lambda x:preprocess(x,augment_data=augment_data))
     if shuffle:
         dataset = dataset.shuffle(buffer_size=buffer_size)
     return dataset
@@ -34,9 +49,10 @@ def load_data(fileA,
                 image_size,
                 buffer_size=30,
                 shuffle=True,
-                repeat=1):
-    datasetA = map_dataset(fileA,image_size,buffer_size,shuffle)
-    datasetB = map_dataset(fileB,image_size,buffer_size,shuffle)
+                repeat=1,
+                augment=False):
+    datasetA = map_dataset(fileA,image_size,buffer_size,shuffle,augment)
+    datasetB = map_dataset(fileB,image_size,buffer_size,shuffle,augment)
     dataset =  tf.data.Dataset.zip((datasetA, datasetB))
     dataset= dataset.repeat(repeat)
     return dataset
@@ -71,7 +87,8 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
     training = load_data(setA_files,
                         setB_files,
                         image_size=image_size,
-                        buffer_size=10)
+                        buffer_size=10,
+                        augment=True)
     generator_dict["training"] = training
     if include_pair:
         pairA_files = get_data_split(

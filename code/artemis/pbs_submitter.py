@@ -23,18 +23,18 @@ def main():
     ]
     param_values = [
      [2],
-     [100],
+     [200],
      [10.0],
      ["/project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/"],
      [2000],
      [2e-4],
      ["t2"],
      ["t1","flair","t1ce"],
-     ["semi"],
+     ["cycle"],
      [240],
-     [0,1,3],
+     [0,1,2,3,4],
      [3],
-     [1.0,5.0,10.0]
+     [1.0]
     ]
 
     for i, e in enumerate(itertools.product(*param_values)):
