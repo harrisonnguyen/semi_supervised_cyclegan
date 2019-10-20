@@ -23,8 +23,8 @@ def main():
     ]
     param_values = [
      [2],
-     [200],
-     [10.0],
+     [100],
+     [5.0],
      ["/project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/"],
      [2000],
      [2e-4],
@@ -32,7 +32,7 @@ def main():
      ["t1","flair","t1ce"],
      ["cycle"],
      [240],
-     [0,1],
+     [0],
      [3],
      [1.0]
     ]

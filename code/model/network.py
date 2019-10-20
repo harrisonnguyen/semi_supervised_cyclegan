@@ -29,9 +29,9 @@ def conv2d(layer_input, filters, f_size=3,normalise=True):
 def deconv2d(layer_input, filters, skip_input=None, f_size=3, dropout_rate=0,
 activation='relu'):
     """Layers used during upsampling"""
-    #u = UpSampling2D(size=2)(layer_input)
-    #u = Conv2D(filters, kernel_size=f_size, strides=1, padding='same')(u)
-    u = Conv2DTranspose(filters,f_size,strides=2, padding='same')(layer_input)
+    u = UpSampling2D(size=2)(layer_input)
+    u = Conv2D(filters, kernel_size=f_size, strides=1, padding='same')(u)
+    #u = Conv2DTranspose(filters,f_size,strides=2, padding='same')(layer_input)
 
     if dropout_rate:
         u = Dropout(dropout_rate)(u)
