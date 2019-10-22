@@ -11,6 +11,7 @@ import os
 import random
 import string
 import yaml
+import pandas as pd
 def index_gen(n_slices,batch_size):
     index = np.array(range(n_slices))
     np.random.shuffle(index)
@@ -223,6 +224,13 @@ def main(checkpoint_dir,
                     gf,df,depth,cycle_loss_weight,semi_loss_weight))
     checkpoint_dir= os.path.join(checkpoint_dir,"experiment{}".format(experiment_id))
     write_params(params,checkpoint_dir)
+
+    # load the results file
+    try:
+        results_df = pd.read_csv(os.path.join(checkpoint_dir,"results.csv"))
+    except:
+        results_df = pd.DataFrame(columns=["epoch","val_mse","val_mae","test_mse","test_mae"])
+
     if dataset == "brats":
         image_size = [240,240,155,1]
     if model == "semi":
@@ -309,6 +317,27 @@ def main(checkpoint_dir,
                 print("finished epoch %d. Saving checkpoint" %current_epoch)
                 # run validation
                 validate(gan,iterator_val,next_val,batch_size)
+
+                # write results to file
+                results = {}
+                results["epoch"] = current_epoch - 1
+                val_score = score(gan,iterator_val,next_val,batch_size)
+                print("Val mse: {:.04f}".format(val_score))
+                results["val_mse"] = val_score
+
+                val_score = score(gan,iterator_val,next_val,batch_size,"mae")
+                print("Val mae: {:.04f}".format(val_score))
+                results["val_mae"] = val_score
+
+                test_score = score(gan,iterator_test,next_test,batch_size)
+                results["test_mse"] = val_score
+                print("test_mse: {:.04f}".format(test_score))
+
+                test_score = score(gan,iterator_test,next_test,batch_size,"mae")
+                results["test_mae"] = val_score
+                print("test_mae: {:.04f}".format(test_score))
+                results_df = results_df.append(results,ignore_index=True)
+                results_df.to_csv(os.path.join(checkpoint_dir,"results.csv"),index=False)
                 break
 
     val_score = score(gan,iterator_val,next_val,batch_size)
