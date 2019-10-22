@@ -3,6 +3,18 @@ from model.cyclegan import CycleGAN
 from model.network import discriminator
 from model_utils import learning_utils as learning
 from keras import backend as K
+from model.network import d_layer
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input,Conv2D
+
+def pair_discriminator(input_img_shape):
+    img = Input(shape=input_img_shape)
+
+    output = d_layer(img, int(input_img_shape[-1]/2))
+    validity = Conv2D(1, kernel_size=4, strides=1, padding='same')(output)
+
+    return Model(img, validity,name="d_pair")
+
 class SemiAdverCycleGAN(CycleGAN):
     def __init__(self,entropy_weight=1.0,*args,**kwargs):
         self._ALPHA = entropy_weight
@@ -11,6 +23,7 @@ class SemiAdverCycleGAN(CycleGAN):
 
     def _build_graph(self,*args,**kwargs):
         super(SemiAdverCycleGAN,self)._build_graph(*args,**kwargs)
+        print(self.d_A.summary())
         patch_size = args[3]
         n_modality = args[4]
         df = args[1]
@@ -20,20 +33,58 @@ class SemiAdverCycleGAN(CycleGAN):
 
         # we concatenate the paired images on the channel axis
         img_shape = self.img_shape
-        img_shape[-1] = self.img_shape[-1]*2
-        self.d_pair = discriminator(img_shape,df,depth)
+        #img_shape[-1] = self.img_shape[-1]*2
+        img_shape[-1] = int(df*2**(depth))
+        img_shape[-2] = int(self.img_shape[-2]/2**depth)
+        img_shape[-3] = int(self.img_shape[-3]/2**depth)
 
-        paired_real = tf.concat([self._xphA_paired,
+        self._predictedB_pair = self.g_AB(self._xphA_paired)
+        self._predictedA_pair = self.g_BA(self._xphB_paired)
+
+        # share weights with other discrim
+        intermediate_layerA = Model(inputs=self.d_A.input,
+                                 outputs=self.d_A.layers[-2].output)
+        intermediate_layerB = Model(inputs=self.d_B.input,
+                                 outputs=self.d_B.layers[-2].output)
+        fmap_apair = intermediate_layerA(self._xphA_paired)
+        fmap_afake = intermediate_layerA(self._predictedA_pair)
+
+        fmap_bpair = intermediate_layerB(self._xphB_paired)
+        fmap_bfake = intermediate_layerB(self._predictedB_pair)
+        self.d_pair = pair_discriminator(img_shape)
+        print(self.d_pair.summary())
+        #self.d_pair = discriminator(img_shape,df,depth)
+
+
+        """
+        paired_real = tf.concat([self._xphA_paired),
                                 self._xphB_paired],
                                 axis=-1)
         paired_fakeA = tf.concat([self._predictedA,
-                                self._reconstructB],
+                                self._xphB_paired],
                                 axis=-1)
-        paired_fakeB = tf.concat([self._reconstructA,
+        paired_fakeB = tf.concat([self._xphA_paired,
                                 self._predictedB],
                                 axis=-1)
+        paired_fakeAB = tf.concat([self._predictedA,
+                                self._predictedB],
+                                axis=-1)
+        """
+        paired_real = tf.concat([fmap_apair,
+                                fmap_bpair],
+                                axis=-1)
+        paired_fakeA = tf.concat([fmap_afake,
+                                fmap_bpair],
+                                axis=-1)
+        paired_fakeB = tf.concat([fmap_apair,
+                                fmap_bfake],
+                                axis=-1)
+        paired_fakeAB = tf.concat([fmap_afake,
+                                fmap_bfake],
+                                axis=-1)
         paired_fake = tf.concat([paired_fakeA,
-                                paired_fakeB],axis=0)
+                                paired_fakeB,
+                                paired_fakeAB],axis=0)
         self._real_discrimPaired = self.d_pair(paired_real)
         self._fake_discrimPaired = self.d_pair(paired_fake)
 
@@ -41,11 +92,11 @@ class SemiAdverCycleGAN(CycleGAN):
     def _create_loss(self,*args,**kwargs):
         super(SemiAdverCycleGAN,self)._create_loss(*args,**kwargs)
         self._discrimpaired_loss = (tf.losses.mean_squared_error(predictions=self._real_discrimPaired,
-                                    labels=tf.ones_like(self._real_discrimPaired))
+                                    labels=0.9*tf.ones_like(self._real_discrimPaired))
      + tf.losses.mean_squared_error(predictions=self._fake_discrimPaired,
                                     labels=tf.zeros_like(self._fake_discrimPaired)))
         self._adver_loss = tf.losses.mean_squared_error(predictions=self._fake_discrimPaired,
-                                    labels=tf.ones_like(self._fake_discrimPaired))
+                                    labels=0.9*tf.ones_like(self._fake_discrimPaired))
         self._genA_loss += self._ALPHA*self._adver_loss
         self._genB_loss += self._ALPHA*self._adver_loss
 
@@ -66,7 +117,7 @@ class SemiAdverCycleGAN(CycleGAN):
                                         self._epoch,
                                          self.initial_learning_rate,
                                         'Adam',
-                                        variables=self.d_pair.trainable_weights,
+                                        variables=self.d_pair.trainable_weights + self.d_A.trainable_weights+self.d_B.trainable_weights,
                                         increment_global_step=False,)
         with tf.control_dependencies(
             [discrimpair_solver]):

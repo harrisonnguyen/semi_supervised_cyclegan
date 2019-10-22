@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -P RDS-FEI-NSEG-RW
-#PBS -l select=1:ncpus=2:ngpus=1:mem=5gb
+#PBS -l select=1:ncpus=2:ngpus=1:mem=8gb
 #PBS -l walltime=5:00:00
 
 module load python/3.6.5

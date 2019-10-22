@@ -17,9 +17,9 @@ def residual_block(layer_input,filters,f_size=3):
     output = Add()([layer_input,d])
     return output
 
-def conv2d(layer_input, filters, f_size=3,normalise=True):
+def conv2d(layer_input, filters, f_size=3,normalise=True,strides=2):
     """Layers used during downsampling"""
-    d = Conv2D(filters, kernel_size=f_size, strides=2, padding='same')(layer_input)
+    d = Conv2D(filters, kernel_size=f_size, strides=strides, padding='same')(layer_input)
 
     if normalise:
         d = InstanceNormalization()(d)
@@ -29,9 +29,9 @@ def conv2d(layer_input, filters, f_size=3,normalise=True):
 def deconv2d(layer_input, filters, skip_input=None, f_size=3, dropout_rate=0,
 activation='relu'):
     """Layers used during upsampling"""
-    u = UpSampling2D(size=2)(layer_input)
-    u = Conv2D(filters, kernel_size=f_size, strides=1, padding='same')(u)
-    #u = Conv2DTranspose(filters,f_size,strides=2, padding='same')(layer_input)
+    #u = UpSampling2D(size=2)(layer_input)
+    #u = Conv2D(filters, kernel_size=f_size, strides=1, padding='same')(u)
+    u = Conv2DTranspose(filters,f_size,strides=2, padding='same')(layer_input)
 
     if dropout_rate:
         u = Dropout(dropout_rate)(u)
@@ -41,17 +41,14 @@ activation='relu'):
         u = Concatenate()([u, skip_input])
     return u
 
-def resnet_gen(input_img_shape,gf,depth,n_res_block=3):
+def resnet_gen(input_img_shape,gf,depth,n_res_block=6):
     d0 = Input(shape=input_img_shape)
     input = d0
 
+    input = conv2d(input,gf,f_size=7,normalise=False,strides=1)
     # down sample
     for i in range(depth):
-        if i==0:
-            normalise=False
-        else:
-            normalise=True
-        output = conv2d(input,gf*(2**i),normalise=normalise)
+        output = conv2d(input,gf*(2**i),normalise=True)
         input = output
 
     # residual block
@@ -94,7 +91,7 @@ def generator(input_img_shape,gf,depth):
     #output_img = Conv2DTranspose(gf, kernel_size=3, strides=2, padding='same')(output)
     return Model(d0, output_img)
 
-def d_layer(layer_input, filters, f_size=4, normalization=True):
+def d_layer(layer_input, filters, f_size=3, normalization=True):
     """Discriminator layer"""
     d = Conv2D(filters, kernel_size=f_size, strides=2, padding='same')(layer_input)
 
@@ -111,7 +108,7 @@ def discriminator(input_img_shape,df,depth):
     for i in range(1,depth):
         output = d_layer(input, df*(2**i))
         input = output
-    output = d_layer(input, df*(2**depth))
-    validity = Conv2D(1, kernel_size=4, strides=1, padding='same')(output)
+    #output = d_layer(input, df*(2**depth))
+    validity = Conv2D(1, kernel_size=3, strides=1, padding='same')(output)
 
     return Model(img, validity)

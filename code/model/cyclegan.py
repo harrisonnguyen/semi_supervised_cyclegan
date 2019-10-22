@@ -41,7 +41,9 @@ class CycleGAN(object):
         tf.keras.backend.set_session(self.sess)
         self.sess.run(tf.global_variables_initializer())
 
-        self._saver = tf.train.Saver(save_relative_paths=True)
+        self._saver = tf.train.Saver(
+                        save_relative_paths=True,
+                        max_to_keep=1)
         checkpoint_dir = os.path.join(base_dir,'train')
         self._train_writer = tf.summary.FileWriter(checkpoint_dir, self.sess.graph)
 
@@ -87,12 +89,12 @@ class CycleGAN(object):
 
     def _create_loss(self):
         self._discrimB_loss = (tf.losses.mean_squared_error(predictions=self._realB,
-                                      labels=tf.ones_like(self._realB))
+                                      labels=0.9*tf.ones_like(self._realB))
         + tf.losses.mean_squared_error(predictions=self._fakeB,
                                     labels=tf.zeros_like(self._fakeB)))
 
         self._discrimA_loss = (tf.losses.mean_squared_error(predictions=self._realA,
-                                      labels=tf.ones_like(self._realA))
+                                      labels=0.9*tf.ones_like(self._realA))
         + tf.losses.mean_squared_error(predictions=self._fakeA,
                                     labels=tf.zeros_like(self._fakeA)))
         self._reconstructA_loss = tf.losses.absolute_difference(self._xphA,self._reconstructA)
@@ -105,19 +107,19 @@ class CycleGAN(object):
 
         self._genA_loss = (tf.losses.mean_squared_error(
                                 predictions=self._fakeA,
-                                labels=tf.ones_like(self._fakeA))
+                                labels=0.9*tf.ones_like(self._fakeA))
                      +      self._LAMBDA*self._cycle_loss
-                     #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
+                     #+  0.01*self._LAMBDA*tf.losses.absolute_difference(
                     #        predictions=self._img_A_id,
                     #        labels=self._xphA)
                      )
 
         self._genB_loss = (tf.losses.mean_squared_error(
                                 predictions=self._fakeB,
-                                 labels=tf.ones_like(self._fakeB))
+                                 labels=0.9*tf.ones_like(self._fakeB))
                       + self._LAMBDA*self._cycle_loss
-                      #+  0.1*self._LAMBDA*tf.losses.absolute_difference(
-                        #     predictions=self._img_B_id,
+                     #+  0.01*self._LAMBDA*tf.losses.absolute_difference(
+                    #        predictions=self._img_B_id,
                     #         labels=self._xphB)
                       )
 
@@ -136,7 +138,7 @@ class CycleGAN(object):
                             x,y,
                             self.begin_decay,
                             decay_steps=self.decay_steps,
-                            end_learning_rate=self.end_learning_rate/2.0))
+                            end_learning_rate=self.end_learning_rate))
         genA_solver = tf.contrib.layers.optimize_loss(
                             self._genA_loss,
                             self._epoch,
@@ -156,7 +158,7 @@ class CycleGAN(object):
         discrimA_solver= tf.contrib.layers.optimize_loss(
                             self._discrimA_loss,
                             self._epoch,
-                             self.initial_learning_rate,
+                             self.initial_learning_rate/2,
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_A.trainable_weights,
@@ -164,7 +166,7 @@ class CycleGAN(object):
         discrimB_solver = tf.contrib.layers.optimize_loss(
                             self._discrimB_loss,
                             self._epoch,
-                             self.initial_learning_rate,
+                             self.initial_learning_rate/2,
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_B.trainable_weights,

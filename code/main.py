@@ -312,14 +312,14 @@ def main(checkpoint_dir,
                 break
 
     val_score = score(gan,iterator_val,next_val,batch_size)
-    print("Val mse: {:.02f}".format(val_score))
+    print("Val mse: {:.04f}".format(val_score))
     val_score = score(gan,iterator_val,next_val,batch_size,"mae")
-    print("Val mae: {:.02f}".format(val_score))
+    print("Val mae: {:.04f}".format(val_score))
 
     test_score = score(gan,iterator_test,next_test,batch_size)
-    print("test_mse: {:.02f}".format(test_score))
+    print("test_mse: {:.04f}".format(test_score))
     test_score = score(gan,iterator_test,next_test,batch_size,"mae")
-    print("test_mae: {:.02f}".format(test_score))
+    print("test_mae: {:.04f}".format(test_score))
 
 if __name__ == "__main__":
     main()
