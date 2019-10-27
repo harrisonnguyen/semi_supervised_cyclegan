@@ -36,10 +36,10 @@ def augment(image):
     shape = image.get_shape().as_list()
     image = tf.image.random_crop(
                 image,
-                [shape[0],180,220,shape[-1]],)
+                [shape[0],200,220,shape[-1]],)
     image = tf.image.pad_to_bounding_box(
                 image,
-                30,
+                20,
                 10,
                 shape[1],
                 shape[2])
