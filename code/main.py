@@ -274,7 +274,8 @@ def main(checkpoint_dir,
                 initial_learning_rate=learning_rate,
                 begin_decay=begin_decay,
                 end_learning_rate=end_learning_rate,
-                decay_steps=decay_steps)
+                decay_steps=decay_steps,
+                mse_weight=semi_loss_weight)
         include_pair = True
     dataset_gen = get_generator(
                     data_dir,
@@ -319,25 +320,26 @@ def main(checkpoint_dir,
                 validate(gan,iterator_val,next_val,batch_size)
 
                 # write results to file
-                results = {}
-                results["epoch"] = current_epoch - 1
-                val_score = score(gan,iterator_val,next_val,batch_size)
-                print("Val mse: {:.04f}".format(val_score))
-                results["val_mse"] = val_score
+                if k%5 == 0:
+                    results = {}
+                    results["epoch"] = current_epoch - 1
+                    val_score = score(gan,iterator_val,next_val,batch_size)
+                    print("Val mse: {:.04f}".format(val_score))
+                    results["val_mse"] = val_score
 
-                val_score = score(gan,iterator_val,next_val,batch_size,"mae")
-                print("Val mae: {:.04f}".format(val_score))
-                results["val_mae"] = val_score
+                    val_score = score(gan,iterator_val,next_val,batch_size,"mae")
+                    print("Val mae: {:.04f}".format(val_score))
+                    results["val_mae"] = val_score
 
-                test_score = score(gan,iterator_test,next_test,batch_size)
-                results["test_mse"] = val_score
-                print("test_mse: {:.04f}".format(test_score))
+                    test_score = score(gan,iterator_test,next_test,batch_size)
+                    results["test_mse"] = val_score
+                    print("test_mse: {:.04f}".format(test_score))
 
-                test_score = score(gan,iterator_test,next_test,batch_size,"mae")
-                results["test_mae"] = val_score
-                print("test_mae: {:.04f}".format(test_score))
-                results_df = results_df.append(results,ignore_index=True)
-                results_df.to_csv(os.path.join(checkpoint_dir,"results.csv"),index=False)
+                    test_score = score(gan,iterator_test,next_test,batch_size,"mae")
+                    results["test_mae"] = val_score
+                    print("test_mae: {:.04f}".format(test_score))
+                    results_df = results_df.append(results,ignore_index=True)
+                    results_df.to_csv(os.path.join(checkpoint_dir,"results.csv"),index=False)
                 break
 
     val_score = score(gan,iterator_val,next_val,batch_size)

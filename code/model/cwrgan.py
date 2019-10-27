@@ -2,8 +2,10 @@ from model.cyclegan import CycleGAN
 from model.network import d_layer, generator
 from tensorflow.keras.layers import Flatten,Dense, Input
 from tensorflow.keras.models import Model
+from keras import backend as K
 import tensorflow as tf
 from model_utils import learning_utils as learning
+import numpy as np
 class SemiWassersteinCycleGAN(CycleGAN):
     def __init__(self,mse_weight=1.0,gradient_penalty_scale=3.0,*args,**kwargs):
         self._ALPHA = mse_weight
@@ -62,6 +64,7 @@ class SemiWassersteinCycleGAN(CycleGAN):
         self._ddxB = tf.gradients(d_hatB, x_hatB)[0]
 
     def _create_loss(self,*args,**kwargs):
+        super(SemiWassersteinCycleGAN,self)._create_loss(*args,**kwargs)
         self._reconstructA_loss = tf.losses.absolute_difference(self._xphA,self._reconstructA)
 
         self._reconstructB_loss = tf.losses.absolute_difference(self._xphB,self._reconstructB)
