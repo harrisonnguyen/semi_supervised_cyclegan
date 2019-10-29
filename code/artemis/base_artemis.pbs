@@ -10,4 +10,4 @@ module load openmpi-gcc/3.1.3
 
 cd /project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan
 
-python code/main.py --checkpoint-dir /project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/ --batch-size 1 --n-epochs 100 --cycle-loss-weight 10.0 --summary-freq 500 --learning-rate 2e-4 --mod-a t2 --mod-b flair --model semi --patch-size 240 --experiment-id 1 --depth 3 --semi-loss-weight 10.0
+python code/main.py --checkpoint-dir /project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/ --batch-size 1 --n-epochs 100 --cycle-loss-weight 10.0 --summary-freq 500 --learning-rate 2e-4 --mod-a t2 --mod-b flair --model semi --experiment-id 1 --depth 3 --semi-loss-weight 10.0

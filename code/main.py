@@ -4,6 +4,7 @@ from model.cyclegan import CycleGAN
 from model.semiadversarialcycle import SemiAdverCycleGAN
 from model.cwrgan import SemiWassersteinCycleGAN
 from load_brats_data import modality_types,get_generator
+from isles_preprocess import config
 import click
 import numpy as np
 import csv
@@ -76,9 +77,12 @@ def train_cycle(gan,i,next_training,batch_size,summary_freq):
 def validate(gan,iterator_val,next_val,batch_size):
     gan.sess.run(iterator_val.initializer)
     img_A,img_B = gan.sess.run(next_val)
-    index = np.array(range(10,min(img_A.shape[0],img_B.shape[0])-20))
+    index = np.array(range(min(img_A.shape[0],img_B.shape[0])))
     np.random.shuffle(index)
-    values = index[:batch_size*20]
+    #n_slice = np.min(batch_size*20,len(index))
+    values = index[:batch_size*5]
+    print(values)
+
     gan.validate(
         img_A[values],
         img_B[values])
@@ -130,11 +134,6 @@ def score(gan,iterator,next_set,batch_size,method="mse"):
             type=click.INT,
              help="Number of convolution blocks for discirm and gen",
              show_default=True)
-@click.option('--patch-size',
-            default=256,
-            type=click.INT,
-             help="Size of image",
-             show_default=True)
 @click.option('--n-channels',
             default=1,
             type=click.INT,
@@ -181,12 +180,12 @@ def score(gan,iterator,next_set,batch_size,method="mse"):
              help="number of epochs to decay learning rate",
              show_default=True)
 @click.option('--mod-a',
-            type=click.Choice(modality_types),
-             help="Choice of brats modality",
+            type=click.Choice(modality_types+config["training_modalities"]),
+             help="Choice of modality",
              show_default=True)
 @click.option('--mod-b',
-            type=click.Choice(modality_types),
-             help="Choice of brats modality",
+            type=click.Choice(modality_types+config["training_modalities"]),
+             help="Choice of modality",
              show_default=True)
 @click.option('--model',
             default="semi",
@@ -195,7 +194,7 @@ def score(gan,iterator,next_set,batch_size,method="mse"):
              show_default=True)
 @click.option('--dataset',
             default="brats",
-            type=click.Choice(["brats"]),
+            type=click.Choice(["brats","isles"]),
              help="Choice of model type",
              show_default=True)
 @click.option('--experiment-id',
@@ -210,7 +209,7 @@ def score(gan,iterator,next_set,batch_size,method="mse"):
              show_default=True)
 def main(checkpoint_dir,
         data_dir,
-        gf,df,depth,patch_size,n_channels,
+        gf,df,depth,n_channels,
         cycle_loss_weight,learning_rate,batch_size,n_epochs,
         summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b,
         model,dataset,experiment_id,semi_loss_weight):
@@ -233,6 +232,12 @@ def main(checkpoint_dir,
 
     if dataset == "brats":
         image_size = [240,240,155,1]
+        patch_size = 240
+        split_filename = "data/brats_files.csv"
+    elif dataset == "isles":
+        image_size = [40,128,128,1]
+        patch_size = 128
+        split_filename = "data/isles_files.csv"
     if model == "semi":
         gan = SemiAdverCycleGAN(
                 base_dir=checkpoint_dir,
@@ -281,7 +286,8 @@ def main(checkpoint_dir,
                     data_dir,
                     image_size,mod_a,mod_b,
                     include_pair=include_pair,
-                        )
+                    split_filename=split_filename,
+                    dataset_type=dataset)
     #set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
     sess = gan.sess
     iterator_training = tf.compat.v1.data.make_initializable_iterator(dataset_gen["training"])

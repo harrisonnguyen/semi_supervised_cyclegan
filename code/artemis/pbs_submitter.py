@@ -16,7 +16,6 @@ def main():
         "--mod-a",
         "--mod-b",
         "--model",
-        "--patch-size",
         "--experiment-id",
         "--depth",
         "--semi-loss-weight"
@@ -31,7 +30,6 @@ def main():
      ["t2"],
      ["t1","flair","t1ce"],
      ["cycle"],
-     [240],
      [0,1,2,3,4],
      [3],
      [1.0]
