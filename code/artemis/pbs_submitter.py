@@ -18,7 +18,9 @@ def main():
         "--model",
         "--experiment-id",
         "--depth",
-        "--semi-loss-weight"
+        "--semi-loss-weight",
+        "--dataset",
+        "--data-dir"
     ]
     param_values = [
      [2],
@@ -27,12 +29,14 @@ def main():
      ["/project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/"],
      [2000],
      [2e-4],
-     ["t2"],
-     ["t1","flair","t1ce"],
-     ["cycle"],
+     ["rCBF"],
+     ["MTT","rCBV","TTP","Tmax"],
+     ["cycle","wasser"],
      [0,1,2,3,4],
      [3],
-     [1.0]
+     [1.0],
+     ["isles"],
+     ["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles"]
     ]
 
     for i, e in enumerate(itertools.product(*param_values)):
