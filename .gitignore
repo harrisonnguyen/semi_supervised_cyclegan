@@ -1,3 +1,4 @@
 *.pyc
-data/*
+data/brats2018
+data/isles
 *.ipynb_checkpoints
