@@ -1,4 +1,4 @@
-from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate,LeakyReLU,UpSampling3D, Conv3D, Conv2D, UpSampling2D,Lambda,Add
+from tensorflow.keras.layers import Input, Dense, Reshape, Flatten, Dropout, Concatenate,LeakyReLU,UpSampling3D, Conv3D, Conv2D, UpSampling2D,Lambda,Add,ReLU
 from tensorflow.keras.layers import BatchNormalization, Activation, ZeroPadding2D,Conv2DTranspose
 from tensorflow.keras.models import Model
 from utils.instance_norm import InstanceNormalization
@@ -23,7 +23,8 @@ def conv2d(layer_input, filters, f_size=3,normalise=True,strides=2):
 
     if normalise:
         d = InstanceNormalization()(d)
-    d = LeakyReLU(alpha=0.2)(d)
+    #d = LeakyReLU(alpha=0.2)(d)
+    d = ReLU()(d)
     return d
 
 def deconv2d(layer_input, filters, skip_input=None, f_size=3, dropout_rate=0,
@@ -36,7 +37,8 @@ activation='relu'):
     if dropout_rate:
         u = Dropout(dropout_rate)(u)
     u = InstanceNormalization()(u)
-    u = LeakyReLU(alpha=0.2)(u)
+    u = ReLU()(u)
+    #u = LeakyReLU(alpha=0.2)(u)
     if skip_input is not None:
         u = Concatenate()([u, skip_input])
     return u
@@ -62,7 +64,7 @@ def resnet_gen(input_img_shape,gf,depth,n_res_block=6):
         input = output
     #u4 = UpSampling2D(size=2)(input)
     #output_img = Conv2DTranspose(input_img_shape[-1], kernel_size=3, strides=2, padding='same', activation='tanh')(input)
-    output_img = Conv2D(input_img_shape[-1], kernel_size=3, strides=1, padding='same', activation='tanh')(input)
+    output_img = Conv2D(input_img_shape[-1], kernel_size=7, strides=1, padding='same', activation='tanh')(input)
 
     return Model(d0, output_img)
 
@@ -91,7 +93,7 @@ def generator(input_img_shape,gf,depth):
     #output_img = Conv2DTranspose(gf, kernel_size=3, strides=2, padding='same')(output)
     return Model(d0, output_img)
 
-def d_layer(layer_input, filters, f_size=3, normalization=True):
+def d_layer(layer_input, filters, f_size=4, normalization=True):
     """Discriminator layer"""
     d = Conv2D(filters, kernel_size=f_size, strides=2, padding='same')(layer_input)
 
@@ -108,7 +110,8 @@ def discriminator(input_img_shape,df,depth):
     for i in range(1,depth):
         output = d_layer(input, df*(2**i))
         input = output
+    kernel_size = input_img_shape[1]//2**depth
     #output = d_layer(input, df*(2**depth))
-    validity = Conv2D(1, kernel_size=3, strides=1, padding='same')(output)
+    validity = Conv2D(1, kernel_size=4, strides=1, padding='same')(output)
 
     return Model(img, validity)
