@@ -338,25 +338,32 @@ def main(checkpoint_dir,
                     results["val_mae"] = val_score
 
                     test_score = score(gan,iterator_test,next_test,batch_size)
-                    results["test_mse"] = val_score
+                    results["test_mse"] = test_score
                     print("test_mse: {:.04f}".format(test_score))
 
                     test_score = score(gan,iterator_test,next_test,batch_size,"mae")
-                    results["test_mae"] = val_score
+                    results["test_mae"] = test_score
                     print("test_mae: {:.04f}".format(test_score))
                     results_df = results_df.append(results,ignore_index=True)
                     results_df.to_csv(os.path.join(checkpoint_dir,"results.csv"),index=False)
                 break
-
+    results = {}
+    results["epoch"] = current_epoch
     val_score = score(gan,iterator_val,next_val,batch_size)
     print("Val mse: {:.04f}".format(val_score))
+    results["val_mse"] = val_score
     val_score = score(gan,iterator_val,next_val,batch_size,"mae")
     print("Val mae: {:.04f}".format(val_score))
-
+    results["val_mae"] = val_score
     test_score = score(gan,iterator_test,next_test,batch_size)
     print("test_mse: {:.04f}".format(test_score))
+    results["test_mse"] = test_score
     test_score = score(gan,iterator_test,next_test,batch_size,"mae")
     print("test_mae: {:.04f}".format(test_score))
+    results["test_mae"] = test_score
+
+    results_df = results_df.append(results,ignore_index=True)
+    results_df.to_csv(os.path.join(checkpoint_dir,"final.csv"),index=False)
 
 if __name__ == "__main__":
     main()
