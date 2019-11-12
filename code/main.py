@@ -301,14 +301,11 @@ def main(checkpoint_dir,
         iterator_training_pair = tf.compat.v1.data.make_initializable_iterator(dataset_gen["pair"])
         next_training_pair = iterator_training_pair.get_next()
         sess.run(iterator_training_pair.initializer)
-    # load existing model
-    try:
-        i = gan.restore_latest_checkpoint()
-        print("Restoring at step {}".format(i))
-    except:
-        i = 0
-        print("Creating new model")
 
+    # load existing model
+    i = gan.restore_latest_checkpoint()
+    best_val_loss = np.inf
+    recent_val_loss = []
     # begin training
     for k in range(n_epochs):
         sess.run(iterator_training.initializer)
@@ -326,16 +323,16 @@ def main(checkpoint_dir,
                 validate(gan,iterator_val,next_val,batch_size)
 
                 # write results to file
-                if k%5 == 0:
+                if k%2 == 0:
                     results = {}
                     results["epoch"] = current_epoch - 1
                     val_score = score(gan,iterator_val,next_val,batch_size)
                     print("Val mse: {:.04f}".format(val_score))
                     results["val_mse"] = val_score
 
-                    val_score = score(gan,iterator_val,next_val,batch_size,"mae")
-                    print("Val mae: {:.04f}".format(val_score))
-                    results["val_mae"] = val_score
+                    val_score_mae = score(gan,iterator_val,next_val,batch_size,"mae")
+                    print("Val mae: {:.04f}".format(val_score_mae))
+                    results["val_mae"] = val_score_mae
 
                     test_score = score(gan,iterator_test,next_test,batch_size)
                     results["test_mse"] = test_score
@@ -346,6 +343,13 @@ def main(checkpoint_dir,
                     print("test_mae: {:.04f}".format(test_score))
                     results_df = results_df.append(results,ignore_index=True)
                     results_df.to_csv(os.path.join(checkpoint_dir,"results.csv"),index=False)
+                    recent_val_loss.append(val_score)
+                    if val_score < best_val_loss:
+                        best_val_loss = val_score
+                        gan.save_checkpoint(save_best=True)
+                    #elif np.mean(recent_val_loss[-10:]) > best_val_loss and len(recent_val_loss) > 10:
+                    #    new_lr = gan.update_learning_rate(fraction=0.8)
+                    #    print("reducing lr to {:0.6f}".format(new_lr))
                 break
     results = {}
     results["epoch"] = n_epochs

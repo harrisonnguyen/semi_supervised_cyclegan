@@ -115,7 +115,7 @@ class SemiAdverCycleGAN(CycleGAN):
         super(SemiAdverCycleGAN,self)._create_optimiser(*args,**kwargs)
         discrimpair_solver = tf.contrib.layers.optimize_loss(self._discrimpaired_loss,
                                         self._epoch,
-                                         self.initial_learning_rate,
+                                         tf.convert_to_tensor(self._lr_variable),
                                         'Adam',
                                         variables=self.d_pair.trainable_weights + self.d_A.trainable_weights+self.d_B.trainable_weights,
                                         increment_global_step=False,)

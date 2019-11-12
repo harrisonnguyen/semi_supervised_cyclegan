@@ -44,6 +44,10 @@ class CycleGAN(object):
         self._saver = tf.train.Saver(
                         save_relative_paths=True,
                         max_to_keep=1)
+        self._best_saver = tf.train.Saver(
+                        save_relative_paths=True,
+                        max_to_keep=3)
+
         checkpoint_dir = os.path.join(base_dir,'train')
         self._train_writer = tf.summary.FileWriter(checkpoint_dir, self.sess.graph)
 
@@ -51,6 +55,7 @@ class CycleGAN(object):
         self._validation_writer = tf.summary.FileWriter(checkpoint_dir, self.sess.graph)
 
         self.checkpoint_dir = os.path.join(base_dir,'checkpoint')
+        self.best_checkpoint_dir = os.path.join(base_dir,'best_checkpoint')
 
     def _build_graph(self,gf,df,depth,patch_size,n_modality):
         self._xphA = tf.placeholder(tf.float32,
@@ -63,6 +68,7 @@ class CycleGAN(object):
         self._batch_step_inc = tf.assign_add(self._batch_step,1)
         self._epoch = tf.Variable(0,trainable=False,dtype=tf.int32)
         self._epoch_inc = tf.assign_add(self._epoch,1)
+        self._lr_variable = tf.Variable(self.initial_learning_rate,trainable=False,dtype=tf.float32,name="lr")
 
         self.g_AB = resnet_gen(self.img_shape,gf,depth)
         self.g_BA = resnet_gen(self.img_shape,gf,depth)
@@ -142,7 +148,7 @@ class CycleGAN(object):
         genA_solver = tf.contrib.layers.optimize_loss(
                             self._genA_loss,
                             self._epoch,
-                             self.initial_learning_rate,
+                             tf.convert_to_tensor(self._lr_variable),
                             'Adam',
                             learning_rate_decay_fn=gen_decay_fn,
                             variables=self.g_AB.trainable_weights,
@@ -150,7 +156,7 @@ class CycleGAN(object):
         genB_solver= tf.contrib.layers.optimize_loss(
                         self._genB_loss,
                         self._epoch,
-                         self.initial_learning_rate,
+                         tf.convert_to_tensor(self._lr_variable),
                         'Adam',
                         learning_rate_decay_fn=gen_decay_fn,
                         variables=self.g_BA.trainable_weights,
@@ -158,7 +164,7 @@ class CycleGAN(object):
         discrimA_solver= tf.contrib.layers.optimize_loss(
                             self._discrimA_loss,
                             self._epoch,
-                             self.initial_learning_rate/2,
+                             tf.convert_to_tensor(self._lr_variable/2),
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_A.trainable_weights,
@@ -166,7 +172,7 @@ class CycleGAN(object):
         discrimB_solver = tf.contrib.layers.optimize_loss(
                             self._discrimB_loss,
                             self._epoch,
-                             self.initial_learning_rate/2,
+                             tf.convert_to_tensor(self._lr_variable/2),
                             'Adam',
                             learning_rate_decay_fn=d_decay_fn,
                             variables=self.d_B.trainable_weights,
@@ -207,7 +213,9 @@ class CycleGAN(object):
         if write_summary:
             self._train_writer.add_summary(summary, global_step)
         return global_step
-
+    def update_learning_rate(self,fraction=0.5):
+        self.sess.run(tf.assign(self._lr_variable,self._lr_variable/2))
+        return self.sess.run(self._lr_variable*fraction)
     def validate(self,A,B):
         data={self._xphA: A,
               self._xphB: B,
@@ -220,9 +228,14 @@ class CycleGAN(object):
 
         return global_step
 
-    def save_checkpoint(self):
+    def save_checkpoint(self,save_best=False):
         epoch = self.get_epoch()
-        self._saver.save(self.sess,
+        if save_best:
+            self._best_saver.save(self.sess,
+                        os.path.join(self.best_checkpoint_dir,"epoch"+str(epoch)+".ckpt"),
+                        write_meta_graph=False)
+        else:
+            self._saver.save(self.sess,
                         os.path.join(self.checkpoint_dir,"epoch"+str(epoch)+".ckpt"),
                         write_meta_graph=False)
         return epoch
@@ -235,8 +248,15 @@ class CycleGAN(object):
         return self.sess.run(self._epoch)
 
     def restore_latest_checkpoint(self):
-        self._saver.restore(self.sess,tf.train.latest_checkpoint(self.checkpoint_dir))
-        return self.sess.run(self._batch_step)
+        # restores from best saved model
+        try:
+            self._best_saver.restore(self.sess,tf.train.latest_checkpoint(self.best_checkpoint_dir))
+            i = self.sess.run(self._batch_step)
+            print("Restoring at step {}".format(i))
+        except:
+            i = 0
+            print("Creating new model")
+        return i
 
     def score(self,A,B,method="mse"):
         """

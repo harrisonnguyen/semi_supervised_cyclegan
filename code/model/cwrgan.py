@@ -1,5 +1,5 @@
 from model.cyclegan import CycleGAN
-from model.network import d_layer, generator
+from model.network import d_layer, generator, discriminator
 from tensorflow.keras.layers import Flatten,Dense, Input
 from tensorflow.keras.models import Model
 from keras import backend as K
@@ -28,6 +28,7 @@ class SemiWassersteinCycleGAN(CycleGAN):
         self._batch_step_inc = tf.assign_add(self._batch_step,1)
         self._epoch = tf.Variable(0,trainable=False,dtype=tf.int32)
         self._epoch_inc = tf.assign_add(self._epoch,1)
+        self._lr_variable = tf.Variable(self.initial_learning_rate,trainable=False,dtype=tf.float32,name="lr")
 
         self.g_AB = generator(self.img_shape,gf,depth)
         self.g_BA = generator(self.img_shape,gf,depth)
@@ -44,8 +45,8 @@ class SemiWassersteinCycleGAN(CycleGAN):
         self._img_A_id = self.g_BA(self._xphA)
         self._img_B_id = self.g_AB(self._xphB)
 
-        self.d_A = critic(self.img_shape,df,depth)
-        self.d_B = critic(self.img_shape,df,depth)
+        self.d_A = discriminator(self.img_shape,df,depth)
+        self.d_B = discriminator(self.img_shape,df,depth)
 
         self._realA = self.d_A(self._xphA)
         self._fakeA = self.d_A(self._predictedA)
@@ -62,6 +63,22 @@ class SemiWassersteinCycleGAN(CycleGAN):
         x_hatB = epsilon * self._xphB + (1 - epsilon) * self._predictedB
         d_hatB = self.d_B(x_hatB)
         self._ddxB = tf.gradients(d_hatB, x_hatB)[0]
+    def _gradient_penalty_loss(self, y_true, y_pred, averaged_samples):
+        """
+        Computes gradient penalty based on prediction and weighted real / fake samples
+        """
+        gradients = tf.gradients(y_pred, averaged_samples)[0]
+        # compute the euclidean norm by squaring ...
+        gradients_sqr = tf.square(gradients)
+        #   ... summing over the rows ...
+        gradients_sqr_sum = tf.reduce_sum(gradients_sqr,
+                                  axis=np.arange(1, len(gradients_sqr.shape)))
+        #   ... and sqrt
+        gradient_l2_norm = tf.sqrt(gradients_sqr_sum)
+        # compute lambda * (1 - ||grad||)^2 still for each single sample
+        gradient_penalty = tf.square(1 - gradient_l2_norm)
+        # return the mean as loss over all the batch samples
+        return tf.reduce_mean(gradient_penalty,axis=0)
 
     def _create_loss(self,*args,**kwargs):
         super(SemiWassersteinCycleGAN,self)._create_loss(*args,**kwargs)
@@ -81,10 +98,10 @@ class SemiWassersteinCycleGAN(CycleGAN):
 
         # wasserstein gradient penalty
         self._ddxA = tf.sqrt(tf.reduce_sum(tf.square(self._ddxA), axis=1))
-        self._ddxA = tf.reduce_mean(tf.square(self._ddxA - 1.0) * self._SCALE)
+        self._ddxA = tf.reduce_mean(tf.square(1.0-self._ddxA) * self._SCALE)
 
         self._ddxB = tf.sqrt(tf.reduce_sum(tf.square(self._ddxB), axis=1))
-        self._ddxB = tf.reduce_mean(tf.square(self._ddxB - 1.0) * self._SCALE)
+        self._ddxB = tf.reduce_mean(tf.square(1.0-self._ddxB) * self._SCALE)
 
         self._discrimA_loss += self._ddxA
         self._discrimB_loss += self._ddxB
