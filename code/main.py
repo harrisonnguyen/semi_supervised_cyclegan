@@ -348,7 +348,7 @@ def main(checkpoint_dir,
                     results_df.to_csv(os.path.join(checkpoint_dir,"results.csv"),index=False)
                 break
     results = {}
-    results["epoch"] = current_epoch
+    results["epoch"] = n_epochs
     val_score = score(gan,iterator_val,next_val,batch_size)
     print("Val mse: {:.04f}".format(val_score))
     results["val_mse"] = val_score
