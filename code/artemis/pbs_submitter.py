@@ -23,20 +23,20 @@ def main():
         "--data-dir"
     ]
     param_values = [
-     [2],
+     [1],
      [200],
-     [10.0],
+     [1.0],
      ["/project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/"],
      [2000],
      [2e-4],
-     ["rCBF"],
-     ["MTT","rCBV","TTP","Tmax"],
-     ["cycle"],
+     ["rCBF"],#["rCBF"],["t2"],
+     ["MTT","rCBV","TTP","Tmax"],#["t1","flair","t1ce"]
+     ["wasser"],
      [5,6,7,8,9],
      [3],
-     [1.0],
-     ["isles"],
-     ["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles/"]
+     [10.0],
+     ["isles"],#["isles"],
+     ["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles/"]#["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles/"]
     ]
 
     for i, e in enumerate(itertools.product(*param_values)):
