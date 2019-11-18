@@ -113,7 +113,7 @@ def get_files(dir,modality):
         raise ValueError("Invalid sim type. Expected one of: %s" % modality_types)
     return glob.glob(os.path.join(dir,"*-{}.tfrecords".format(modality)))
 
-def get_data_split(data_dir,modality,set_choice,include_pair=True,split_filename="data/brats_files.csv",):
+def get_data_split(data_dir,modality,set_choice,include_pair=True,split_filename="data/brats_files.csv",only_pair=False):
     set_choices = ["setA","setB","pair","test"]
     if set_choice not in set_choices:
         raise ValueError("Invalid sim type. Expected one of: %s" % set_choices)
@@ -121,18 +121,21 @@ def get_data_split(data_dir,modality,set_choice,include_pair=True,split_filename
     set_df = data_dir+ df[df["Set"] == set_choice]["Filename"].astype(str) + "-"+modality+".tfrecords"
     set_files = list(set_df.values)
 
-    if include_pair:
+    if include_pair or only_pair:
         pair_df =data_dir+ df[df["Set"] == "pair"]["Filename"].astype(str) + "-"+modality+".tfrecords"
-        set_files += list(pair_df.values)
+        if only_pair:
+            set_files = list(pair_df.values)
+        else:
+            set_files += list(pair_df.values)
     return set_files
 
 def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
-                    split_filename="data/brats_files.csv",buffer_size=10,dataset_type="brats"):
+                    split_filename="data/brats_files.csv",buffer_size=10,dataset_type="brats",only_pair=False):
     generator_dict = {}
-    setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=False,
-    split_filename=split_filename)
-    setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=False,
-    split_filename=split_filename)
+    setA_files = get_data_split(data_dir,mod_a,"setA",include_pair=True,
+    split_filename=split_filename,only_pair=only_pair)
+    setB_files = get_data_split(data_dir,mod_b,"setB",include_pair=True,
+    split_filename=split_filename,only_pair=only_pair)
     training = load_data(setA_files,
                         setB_files,
                         image_size=image_size,
@@ -140,18 +143,19 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
                         augment=True,
                         dataset_type=dataset_type)
     generator_dict["training"] = training
+    print(len(setA_files))
     if include_pair:
         pairA_files = get_data_split(
                         data_dir,
                         mod_a,
                         "pair",
-                        include_pair=True,
+                        include_pair=False,
                         split_filename=split_filename,)
         pairB_files = get_data_split(
                         data_dir,
                         mod_b,
                         "pair",
-                        include_pair=True,
+                        include_pair=False,
                         split_filename=split_filename)
         pair_training = load_data_pair(pairA_files,
                             pairB_files,
@@ -160,9 +164,11 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
                             repeat=None,
                             augment=True,
                             dataset_type=dataset_type)
+        print(len(pairB_files))
         generator_dict["pair"] = pair_training
     valA_files = get_data_split(data_dir,mod_a,"test",split_filename=split_filename)
     valB_files = get_data_split(data_dir,mod_b,"test",split_filename=split_filename)
+    print(len(valA_files))
     val = load_data_pair(valA_files[0],
                     valB_files[0],
                         image_size=image_size,
@@ -182,18 +188,13 @@ def get_generator(data_dir,image_size,mod_a,mod_b,include_pair=False,
     return generator_dict
 
 def main():
-    dir = "data/brats2018/"
-    files = get_files(dir,"t1")
-    dataset = load_data(files,
-                    image_size=[240,240,155,1])
-
-    iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
-    next_image = iterator.get_next()
-    sess = tf.compat.v1.Session()
-    while True:
-        try:
-            image = sess.run(next_image)
-        except tf.errors.OutOfRangeError:
-            break
+    dataset_gen = get_generator(
+                    "data/brats2018",
+                    [240,240,155,1],
+                    "T1","T2",
+                    include_pair=True,
+                    split_filename="data/brats_files.csv",
+                    dataset_type="brats",
+                    only_pair=True)
 if __name__ == "__main__":
     main()

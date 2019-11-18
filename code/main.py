@@ -207,12 +207,16 @@ def score(gan,iterator,next_set,batch_size,method="mse"):
             type=click.FLOAT,
              help="Relative loss of cycle",
              show_default=True)
+@click.option('--only-pair',
+            is_flag=True,
+             help="Flag to use only paired data",
+             show_default=True)
 def main(checkpoint_dir,
         data_dir,
         gf,df,depth,n_channels,
         cycle_loss_weight,learning_rate,batch_size,n_epochs,
         summary_freq,end_learning_rate,begin_decay,decay_steps,mod_a,mod_b,
-        model,dataset,experiment_id,semi_loss_weight):
+        model,dataset,experiment_id,semi_loss_weight,only_pair):
     params = click.get_current_context().params
     checkpoint_dir= os.path.join(checkpoint_dir,dataset)
     checkpoint_dir = os.path.join(checkpoint_dir,"{}_{}".format(mod_a,mod_b))
@@ -287,7 +291,8 @@ def main(checkpoint_dir,
                     image_size,mod_a,mod_b,
                     include_pair=include_pair,
                     split_filename=split_filename,
-                    dataset_type=dataset)
+                    dataset_type=dataset,
+                    only_pair=only_pair)
     #set_A,set_B = get_data_split(data_dir,mod_a,mod_b)
     sess = gan.sess
     iterator_training = tf.compat.v1.data.make_initializable_iterator(dataset_gen["training"])
