@@ -21,7 +21,7 @@ def main():
         "--semi-loss-weight",
         "--dataset",
         "--data-dir",
-        "--only-pair",
+        #"",
     ]
     param_values = [
      [1],
@@ -30,15 +30,15 @@ def main():
      ["/project/RDS-FEI-NSEG-RW/tensorflow_checkpoints/ssl/"],
      [2000],
      [2e-4],
-     ["rCBF"],#["rCBF"],["t2"],
-     ["MTT","rCBV","TTP","Tmax"],#["t1","flair","t1ce"]
+     ["t2"],#["rCBF"],["t2"],
+     ["t1","flair","t1ce"],#["MTT","rCBV","TTP","Tmax"],#["t1","flair","t1ce"]
      ["semi"],
-     [20,21,22,23,24],
+     [30,31,32,33,34],
      [3],
      [2.0],
-     ["isles"],#["isles"],
-     ["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles/"],#["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles/"]
-     [],
+     ["brats"],#["isles"],
+     ["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/brats2018/"],#["/project/RDS-FEI-NSEG-RW/semi_supervised_cyclegan/data/isles/"]
+     #["--only-pair"],
     ]
 
     for i, e in enumerate(itertools.product(*param_values)):
